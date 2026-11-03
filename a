@@ -1,0 +1,4 @@
+makeShapeSprite(10, 20, 50, 40, red);
+makeShapeSprite(32, 10, 6, 10, brown);
+makeShapeSprite(38, 12, 10, 6, green);
+makeShapeSprite(18, 26, 8, 12, white);

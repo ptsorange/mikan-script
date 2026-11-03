@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import { getCommand,getInside } from "@/lib/lang";
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [inputCode, setInputCode] = useState("");
-  const [codes, setCodes] = useState<string[]>([]);
-  const codeIDEn = ["sprite", "move"];
-  const codeIDJp = ["スプライト", "動く"];
+  const sampleParms = [[0, 0, 50, 50, "white"]]
 
   useEffect(() => {
+    setInputCode(localStorage.getItem("code") ?? "");
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -18,48 +17,39 @@ export default function Home() {
     if (!gameScreen) return;
   }, []);
 
-  const getCommand = (codeLine: string) => {
-    for (let i = 0; i < codeIDEn.length; i++) {
-      if (codeLine.startsWith(codeIDEn[i])) return i
-      if (codeLine.startsWith(codeIDJp[i])) return i
-    }
-  }
-
-  const getInside = (firstChar: string, lastChar: string, text: string) => {
-    let inside = "";
-    let i = text.indexOf(firstChar);
-    let j = 1;
-
-    while (i < text.length - 1 && j > 0) {
-      i++;
-      if (text[i] === firstChar) j++;
-      if (text[i] === lastChar) j--;
-      if (j > 0) {
-        inside += text[i];
-      }
-    }
-    return inside;
-  }
+const onChange = (value: string) => {
+  setInputCode(value);
+  localStorage.setItem("code", value);
+};
 
   const runCode = () => {
     let spriteData: any = [];
-    const lines = inputCode.split(";");
+    const lines = inputCode.split(/[;\n]/);
     console.log(lines)
     lines.forEach(codeLine => {
-      const command = getCommand(codeLine.replace("\n",""));
+      if (codeLine.startsWith("//") || codeLine.startsWith("#") || codeLine == "") return;
+      const command = getCommand(codeLine.trim());
       if (command == 0) {
         const pr = getInside("(", ")", codeLine).split(",");
-        spriteData.push([Number(pr[0]), Number(pr[1]), Number(pr[2]), Number(pr[3]), pr[4].trim()]);
+        console.log(pr.length)
+        spriteData.push([
+          1 <= pr.length ? Number(pr[0]) : sampleParms[0][0],
+          2 <= pr.length ? Number(pr[1]) : sampleParms[0][1],
+          3 <= pr.length ? Number(pr[2]) : sampleParms[0][2],
+          4 <= pr.length ? Number(pr[3]) : sampleParms[0][3],
+          5 <= pr.length ? pr[4].trim() : sampleParms[0][4]]);
       }
     });
 
-    let jsCode = `let spriteData = ${JSON.stringify(spriteData)};\n`;
-    jsCode += `const canvas = document.getElementById("gameScreen");\n`;
-    jsCode += `const ctx = canvas.getContext("2d");\n`;
-    jsCode += `spriteData.forEach(sprite => {\n`;
-    jsCode += `  ctx.fillStyle = sprite[4];\n`;
-    jsCode += `  ctx.fillRect(sprite[0], sprite[1], sprite[2], sprite[3]);\n`;
-    jsCode += `});`;
+    let jsCode = `
+    let spriteData = ${JSON.stringify(spriteData)};
+    const canvas = document.getElementById("gameScreen");
+    const ctx = canvas.getContext("2d");
+    ctx.reset();
+    spriteData.forEach(sprite => {
+      ctx.fillStyle = sprite[4];
+      ctx.fillRect(sprite[0], sprite[1], sprite[2], sprite[3]);
+    });`
 
     try {
       new Function(jsCode)();
@@ -70,10 +60,12 @@ export default function Home() {
   };
 
   return (
-    <div>
-      <textarea id="codeEdittor" value={inputCode} onChange={(e) => setInputCode(e.target.value)}></textarea>
-      <button onClick={(runCode)}>Run</button>
-      <canvas ref={canvasRef} id="gameScreen" width="400" height="300" className="border border-white m-1" />
+    <div className="flex">
+      <textarea id="codeEdittor" value={inputCode} onChange={(e) => onChange(e.target.value)} className="w-1/2" />
+      <div className="flex flex-col">
+        <button onClick={(runCode)}>Run</button>
+        <canvas ref={canvasRef} id="gameScreen" width="400" height="300" className="border border-white m-1" />
+      </div>
     </div>
   );
 }
