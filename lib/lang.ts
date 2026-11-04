@@ -29,17 +29,45 @@ type Token = string | Token[];
 
 const TOKEN_RE = new RegExp(
   [
-    String.raw`\/\/[^\n]*`,              // 行コメント
-    String.raw`"(?:\\.|[^"\\\n])*"?`,    // "文字列"
-    String.raw`'(?:\\.|[^'\\\n])*'?`,    // '文字列'
-    String.raw`\`(?:\\.|[^\`\\])*\`?`,   // `文字列`
-    String.raw`\n|;`,                    // 行の区切り
-    String.raw`[ \t\r]+`,                // 空白
-    String.raw`[.()=<>+\-*\/|&\[\]{}]`,  // 区切り記号（1文字ずつトークン）
-    String.raw`[^\s.()=<>+\-*\/|&\[\]{}"'\`;]+`, // 識別子・数値など
+    String.raw`\/\/[^\n]*`,
+    String.raw`"(?:\\.|[^"\\\n])*"?`,
+    String.raw`'(?:\\.|[^'\\\n])*'?`,
+    String.raw`\`(?:\\.|[^\`\\])*\`?`,
+    String.raw`\n|;`,
+    String.raw`[ \t\r]+`,
+    String.raw`\d+(?:\.\d+)?`,
+    String.raw`===|!==|==|!=|<=|>=|&&|\|\||\+\+|--|\+=|-=|\*=|\/=|=>`,
+    String.raw`[.,:?!%()=<>+\-*\/|&\[\]{}]`,
+    String.raw`[^\s.,:?!%()=<>+\-*\/|&\[\]{}"'\`;]+`,
   ].join("|"),
   "g"
 );
+
+const CONTROL = ["if", "else", "while", "for"];
+
+export const compile = (lines: Token[][], variables: string[]): string => {
+  let js = "";
+  for (const line of lines) {
+    const last = line[line.length - 1];
+    const block = Array.isArray(last) ? (last as Token[][]) : null;
+    const head = (block ? line.slice(0, -1) : line) as string[];
+    const command = getCommand(head);
+
+    if (command !== -1 && commands[command].en === "print") {
+      js += `output += ${head.slice(2, -1).join(" ")}`;
+    } else if (command !== -1) {
+      variables.push(head[1]);
+      js += `let ${head[1]} ${head.slice(2).join(" ")}`;
+    } else if (variables.includes(head[0]) || CONTROL.includes(head[0])) {
+      js += head.join(" ");
+    } else {
+      continue;
+    }
+
+    js += block ? ` {\n${compile(block, variables)}}\n` : ";\n";
+  }
+  return js;
+};
 
 export const splitCode = (code: string): Token[][] => {
   const root: Token[][] = [];
@@ -48,8 +76,8 @@ export const splitCode = (code: string): Token[][] => {
   let line: Token[] | null = null;
 
   for (const [t] of code.matchAll(TOKEN_RE)) {
-    if (t === "\n" || t === ";") { line = null; continue; }   
-    if (/^[ \t\r]+$/.test(t) || t.startsWith("//")) continue; 
+    if (t === "\n" || t === ";") { line = null; continue; }
+    if (/^[ \t\r]+$/.test(t) || t.startsWith("//")) continue;
 
     if (t === "{") {
       const block: Token[][] = [];

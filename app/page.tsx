@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getCommand, getInside, commands, splitCode } from "@/lib/lang";
+import { getCommand, getInside, commands, splitCode, compile } from "@/lib/lang";
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,42 +25,19 @@ export default function Home() {
     localStorage.setItem("code", value);
   };
 
+  //   const canvas = document.getElementById("gameScreen");
+  //   const ctx = canvas.getContext("2d");
+  //   ctx.reset();
+  //   spriteData.forEach(sprite => {
+  //     ctx.fillStyle = sprite[4];
+  //     ctx.fillRect(sprite[0], sprite[1], sprite[2], sprite[3]);
+  //   });
+  // `;
+
+  // jsCode = `let spriteData = ${JSON.stringify(spriteData)};\n` + jsCode;
+
   const runCode = () => {
-    let variables: any = [];
-    let jsCode = `let output = "";\n`;
-    //   const canvas = document.getElementById("gameScreen");
-    //   const ctx = canvas.getContext("2d");
-    //   ctx.reset();
-    //   spriteData.forEach(sprite => {
-    //     ctx.fillStyle = sprite[4];
-    //     ctx.fillRect(sprite[0], sprite[1], sprite[2], sprite[3]);
-    //   });
-    // `;
-
-    const code = splitCode(inputCode);
-    code.forEach(codeLine => {
-      const command = getCommand(codeLine);
-      if (command == -1) {
-        if (variables.includes(codeLine[0])) {
-          codeLine.forEach(parm => {
-            jsCode += parm + " ";
-          });
-          jsCode += ";\n";
-        }
-      }
-      else if (commands[command].en == "print") {
-        jsCode += `output += ${codeLine[2]};\n`;
-      }
-      else if (commands[command].en == "text" || commands[command].en == "num") {
-        const newCode = `let ${codeLine[1]} ${codeLine[2]} ${codeLine[3]};\n`;
-        variables.push(codeLine[1]);
-        jsCode += newCode;
-      }
-    });
-
-    jsCode += `setLog(output);\n`;
-    // jsCode = `let spriteData = ${JSON.stringify(spriteData)};\n` + jsCode;
-
+    const jsCode = `let output = "";\n${compile(splitCode(inputCode), [])}setLog(output);\n`;
     try {
       console.log(jsCode);
       new Function("setLog", jsCode)(setLog);
