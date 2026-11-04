@@ -1,16 +1,12 @@
 
 export const commands = [
-  { en: "makeShapeSprite", jp: "図形スプライト作成" },
-  { en: "move", jp: "動く" },
-  { en: "text", jp: "文字" },
-  { en: "num", jp: "数" },
-  { en: "sprite", jp: "スプライト" },
   { en: "print", jp: "表示" },
+  { en: "text", jp: "テキスト" },
+  { en: "num", jp: "数" },
 ];
 
-export const getCommand = (codeLine: string) => {
-  const name = codeLine.trim().split(/[ .(]/)[0];
-  return commands.findIndex(command => command.en === name || command.jp === name);
+export const getCommand = (codeLine: any) => {
+  return commands.findIndex(command => command.en === codeLine[0] || command.jp === codeLine[0]);
 }
 
 export const getInside = (firstChar: string, lastChar: string, text: string) => {
@@ -31,42 +27,52 @@ export const getInside = (firstChar: string, lastChar: string, text: string) => 
 
 type Token = string | Token[];
 
+const TOKEN_RE = new RegExp(
+  [
+    String.raw`\/\/[^\n]*`,              // 行コメント
+    String.raw`"(?:\\.|[^"\\\n])*"?`,    // "文字列"
+    String.raw`'(?:\\.|[^'\\\n])*'?`,    // '文字列'
+    String.raw`\`(?:\\.|[^\`\\])*\`?`,   // `文字列`
+    String.raw`\n|;`,                    // 行の区切り
+    String.raw`[ \t\r]+`,                // 空白
+    String.raw`[.()=<>+\-*\/|&\[\]{}]`,  // 区切り記号（1文字ずつトークン）
+    String.raw`[^\s.()=<>+\-*\/|&\[\]{}"'\`;]+`, // 識別子・数値など
+  ].join("|"),
+  "g"
+);
+
 export const splitCode = (code: string): Token[][] => {
   const root: Token[][] = [];
   const stack: Token[][][] = [root];
   const current = () => stack[stack.length - 1];
+  let line: Token[] | null = null;
 
-  code.split(/[\n;]/).forEach(raw => {
-    const trimmed = raw.trim();
-    if (trimmed === "" || trimmed.startsWith("//")) return;
+  for (const [t] of code.matchAll(TOKEN_RE)) {
+    if (t === "\n" || t === ";") { line = null; continue; }   
+    if (/^[ \t\r]+$/.test(t) || t.startsWith("//")) continue; 
 
-    const tokens = trimmed
-      .split(/([ .()=<>+\-*\/|&\[\]{}])/)
-      .filter(t => t !== "" && t !== " ");
-
-    let line: Token[] = [];
-
-    for (const t of tokens) {
-      if (t === "{") {
-        const block: Token[][] = [];
-        if (line.length > 0) {
-          line.push(block);              
-        } else {
-          const last = current()[current().length - 1];
-          if (last) last.push(block);
-          else current().push([block]);
-        }
-        stack.push(block);
-        line = [];
-      } else if (t === "}") {
-        if (stack.length > 1) stack.pop();
-        line = [];
+    if (t === "{") {
+      const block: Token[][] = [];
+      if (line) {
+        line.push(block);
       } else {
-        if (line.length === 0) current().push(line);
-        line.push(t);
+        const last = current()[current().length - 1];
+        if (last) last.push(block);
+        else current().push([block]);
       }
+      stack.push(block);
+      line = null;
+    } else if (t === "}") {
+      if (stack.length > 1) stack.pop();
+      line = null;
+    } else {
+      if (!line) {
+        line = [];
+        current().push(line);
+      }
+      line.push(t);
     }
-  });
+  }
 
   return root;
 };
