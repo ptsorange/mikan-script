@@ -38,14 +38,17 @@ export default function Home() {
 
   const runCode = () => {
     const jsCode = 
-`const canvas = document.getElementById("gameScreen");
+`(async () => {
+const canvas = document.getElementById("gameScreen");
 const ctx = canvas.getContext("2d");
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const log=document.getElementById("logBox")
 log.textContent="";
 const addLog=(textLog)=>{
   log.textContent+=textLog;
 }
-${compile(splitCode(inputCode), [])}`;
+${compile(splitCode(inputCode), [])}
+})();`;
     try {
       console.log(jsCode);
       new Function("setLog", jsCode)(setLog);

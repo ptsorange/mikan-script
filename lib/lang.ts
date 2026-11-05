@@ -7,6 +7,8 @@ export const commands = [
   { en: "else", jp: "そうでなければ" },
   { en: "while", jp: "ずっと" },
   { en: "for", jp: "繰り返す" },
+  { en: "times", jp: "回" },
+  { en: "sleep", jp: "待つ" },
 ];
 
 export const getCommand = (codeLine: any) => {
@@ -49,56 +51,74 @@ const TOKEN_RE = new RegExp(
 
 const CONTROL = ["if", "else", "while", "for"];
 
+// JavaScriptに変換する
 export const compile = (lines: Token[][], variables: string[]): string => {
-  let js = "";
+  const sprites: string[] = [];
   let spriteJs = "";
-  let spriteData: any = [];
-  for (const line of lines) {
-    const last = line[line.length - 1];
-    const block = Array.isArray(last) ? (last as Token[][]) : null;
-    const head = (block ? line.slice(0, -1) : line) as string[];
-    const command = getCommand(head);
 
-    if (CONTROL.includes(head[0]) || variables.includes(head[0])) {
-      js += head.join(" ");
-    } else if (command !== -1 && commands[command].en == "print") {
-      js += `addLog(${head.slice(2, -1).join(" ")})`;
-    }
-    else if (command !== -1 && commands[command].en == "sprite") {
-      spriteData.push(head[1]);
-      if (head[3] == "makeShapeSprite") {
-        spriteJs +=
-          `const ${head[1]} = {
-  x: ${head[7]},
-  y: ${head[9]},
-  h: ${head[13]},
+  const compileLines = (lines: Token[][], variables: string[]): string => {
+    let js = "";
+    for (const line of lines) {
+      const last = line[line.length - 1];
+      const block = Array.isArray(last) ? (last as Token[][]) : null;
+      const head = (block ? line.slice(0, -1) : line) as string[];
+
+      if (head[0] === "num" || head[0] === "text") {
+        variables.push(head[1]);
+        js += `let ${head[1]} ${head.slice(2).join(" ")};\n`;
+      } else if (head[0] === "print") {
+        js += `addLog(${head.slice(2, -1).join(" ")});\n`;
+      } else if (head[0] === "sprite") {
+        sprites.push(head[1]);
+        variables.push(head[1]);
+        if (head[3] === "makeShapeSprite") {
+          spriteJs +=
+            `const ${head[1]} = {
+  x: ${head[5]},
+  y: ${head[7]},
+  h: ${head[9]},
   w: ${head[11]},
-  color: ${head[15]},
+  color: ${head[13]},
   draw() {
     ctx.fillStyle = this.color;
-    ctx.fillRect(this.x,this.y,this.h,this.w);
-  },
-};`
-        js+="window.requestAnimationFrame(draw)";
+    ctx.fillRect(this.x, this.y, this.h, this.w);
+  }
+};
+`;
+          js += "draw();\n";
+        }
+      } else if (head[0] === "for") {
+        const name = head[2];
+        const close = head.lastIndexOf(")");
+        const count = head.slice(4, close).join(" ");
+        js += `for (let ${name} = 0, __n = (${count}); ${name} < __n; ${name}++)`;
+        js += ` {\n${compileLines(block ?? [], [...variables, name])}}\n`;
+      } else if (head[0] === "sleep") {
+        js += `await sleep(${head.slice(2, -1).join(" ")});\n`;
+      } else if (CONTROL.includes(head[0]) || variables.includes(head[0])) {
+        js += head.join(" ");
+        js += block ? ` {\n${compileLines(block, variables)}}\n` : ";\n";
+        // ${(head[0] == "while" && head[head.length - 1].indexOf("sleep") == -1) ? "await sleep(0);\n" : ""}
+        if (!block && sprites.includes(head[0])) js += "draw();\n";
+      } else {
+        continue;
       }
     }
-    else if (command !== -1) {
-      variables.push(head[1]);
-      js += `let ${head[1]} ${head.slice(2).join(" ")}`;
-    } else {
-      continue;
-    }
+    return js;
+  };
 
-    js += block ? ` {\n${compile(block, variables)}}\n` : ";\n";
-  }
-  spriteJs +=
-    `const draw=()=>{
+  const body = compileLines(lines, variables);
+
+  const drawJs =
+    `const draw = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ${Array.from({ length: spriteData.length }, (_, i) => spriteData[i] + ".draw();\n")}}
-`
-  return spriteJs+js;
+${sprites.map(s => `  ${s}.draw();`).join("\n")}
+};
+`;
+  return spriteJs + drawJs + body;
 };
 
+// コードをトークンずつに分ける
 export const splitCode = (code: string): Token[][] => {
   const root: Token[][] = [];
   const stack: Token[][][] = [root];
