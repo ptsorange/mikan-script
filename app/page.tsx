@@ -38,7 +38,9 @@ export default function Home() {
 
   const runCode = () => {
     const jsCode = 
-`const log=document.getElementById("logBox")
+`const canvas = document.getElementById("gameScreen");
+const ctx = canvas.getContext("2d");
+const log=document.getElementById("logBox")
 log.textContent="";
 const addLog=(textLog)=>{
   log.textContent+=textLog;

@@ -51,6 +51,8 @@ const CONTROL = ["if", "else", "while", "for"];
 
 export const compile = (lines: Token[][], variables: string[]): string => {
   let js = "";
+  let spriteJs = "";
+  let spriteData: any = [];
   for (const line of lines) {
     const last = line[line.length - 1];
     const block = Array.isArray(last) ? (last as Token[][]) : null;
@@ -59,9 +61,28 @@ export const compile = (lines: Token[][], variables: string[]): string => {
 
     if (CONTROL.includes(head[0]) || variables.includes(head[0])) {
       js += head.join(" ");
-    } else if (command !== -1 && commands[command].en === "print") {
+    } else if (command !== -1 && commands[command].en == "print") {
       js += `addLog(${head.slice(2, -1).join(" ")})`;
-    } else if (command !== -1) {
+    }
+    else if (command !== -1 && commands[command].en == "sprite") {
+      spriteData.push(head[1]);
+      if (head[3] == "makeShapeSprite") {
+        spriteJs +=
+          `const ${head[1]} = {
+  x: ${head[7]},
+  y: ${head[9]},
+  h: ${head[13]},
+  w: ${head[11]},
+  color: ${head[15]},
+  draw() {
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x,this.y,this.h,this.w);
+  },
+};`
+        js+="window.requestAnimationFrame(draw)";
+      }
+    }
+    else if (command !== -1) {
       variables.push(head[1]);
       js += `let ${head[1]} ${head.slice(2).join(" ")}`;
     } else {
@@ -70,7 +91,12 @@ export const compile = (lines: Token[][], variables: string[]): string => {
 
     js += block ? ` {\n${compile(block, variables)}}\n` : ";\n";
   }
-  return js;
+  spriteJs +=
+    `const draw=()=>{
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ${Array.from({ length: spriteData.length }, (_, i) => spriteData[i] + ".draw();\n")}}
+`
+  return spriteJs+js;
 };
 
 export const splitCode = (code: string): Token[][] => {
