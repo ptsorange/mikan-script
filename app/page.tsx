@@ -37,7 +37,13 @@ export default function Home() {
   // jsCode = `let spriteData = ${JSON.stringify(spriteData)};\n` + jsCode;
 
   const runCode = () => {
-    const jsCode = `let output = "";\n${compile(splitCode(inputCode), [])}setLog(output);\n`;
+    const jsCode = 
+`const log=document.getElementById("logBox")
+log.textContent="";
+const addLog=(textLog)=>{
+  log.textContent+=textLog;
+}
+${compile(splitCode(inputCode), [])}`;
     try {
       console.log(jsCode);
       new Function("setLog", jsCode)(setLog);
@@ -52,7 +58,7 @@ export default function Home() {
       <div className="flex flex-col">
         <button onClick={(runCode)}>Run</button>
         <canvas ref={canvasRef} id="gameScreen" width="400" height="300" className="border border-white m-1" />
-        <pre>{log}</pre>
+        <pre id="logBox">{log}</pre>
       </div>
     </div>
   );

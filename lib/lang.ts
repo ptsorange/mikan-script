@@ -1,8 +1,12 @@
-
 export const commands = [
   { en: "print", jp: "表示" },
   { en: "text", jp: "テキスト" },
   { en: "num", jp: "数" },
+  { en: "sprite", jp: "スプライト" },
+  { en: "if", jp: "もし" },
+  { en: "else", jp: "そうでなければ" },
+  { en: "while", jp: "ずっと" },
+  { en: "for", jp: "繰り返す" },
 ];
 
 export const getCommand = (codeLine: any) => {
@@ -53,13 +57,13 @@ export const compile = (lines: Token[][], variables: string[]): string => {
     const head = (block ? line.slice(0, -1) : line) as string[];
     const command = getCommand(head);
 
-    if (command !== -1 && commands[command].en === "print") {
-      js += `output += ${head.slice(2, -1).join(" ")}`;
+    if (CONTROL.includes(head[0]) || variables.includes(head[0])) {
+      js += head.join(" ");
+    } else if (command !== -1 && commands[command].en === "print") {
+      js += `addLog(${head.slice(2, -1).join(" ")})`;
     } else if (command !== -1) {
       variables.push(head[1]);
       js += `let ${head[1]} ${head.slice(2).join(" ")}`;
-    } else if (variables.includes(head[0]) || CONTROL.includes(head[0])) {
-      js += head.join(" ");
     } else {
       continue;
     }
@@ -75,9 +79,11 @@ export const splitCode = (code: string): Token[][] => {
   const current = () => stack[stack.length - 1];
   let line: Token[] | null = null;
 
-  for (const [t] of code.matchAll(TOKEN_RE)) {
+  for (let [t] of code.matchAll(TOKEN_RE)) {
     if (t === "\n" || t === ";") { line = null; continue; }
     if (/^[ \t\r]+$/.test(t) || t.startsWith("//")) continue;
+    const commandIndex = commands.findIndex(command => command.jp === t);
+    if (commandIndex !== -1) t = commands[commandIndex].en;
 
     if (t === "{") {
       const block: Token[][] = [];
