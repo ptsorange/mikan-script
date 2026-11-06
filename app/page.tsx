@@ -47,6 +47,9 @@ log.textContent="";
 const addLog=(textLog)=>{
   log.textContent+=textLog;
 }
+const clearLog=()=>{
+  log.textContent="";
+}
 ${compile(splitCode(inputCode), [])}
 })();`;
     try {

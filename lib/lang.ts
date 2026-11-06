@@ -9,11 +9,21 @@ export const commands = [
   { en: "for", jp: "繰り返す" },
   { en: "times", jp: "回" },
   { en: "sleep", jp: "待つ" },
+  { en: "onStart", jp: "スタートしたら" },
+  { en: "onKeyDown", jp: "キーを押したら" },
+  { en: "clearLog", jp: "ログをクリア" },
 ];
 
 export const getCommand = (codeLine: any) => {
   return commands.findIndex(command => command.en === codeLine[0] || command.jp === codeLine[0]);
 }
+
+const between = (tokens: string[], from: string, to: string) => {
+  const i = tokens.indexOf(from);
+  const j = tokens.lastIndexOf(to);
+  if (i === -1 || j === -1 || j <= i) return [];
+  return tokens.slice(i + 1, j);
+};
 
 export const getInside = (firstChar: string, lastChar: string, text: string) => {
   let inside = "";
@@ -55,6 +65,7 @@ const CONTROL = ["if", "else", "while", "for"];
 export const compile = (lines: Token[][], variables: string[]): string => {
   const sprites: string[] = [];
   let spriteJs = "";
+  const asyncScripts = [];
 
   const compileLines = (lines: Token[][], variables: string[]): string => {
     let js = "";
@@ -63,12 +74,14 @@ export const compile = (lines: Token[][], variables: string[]): string => {
       const block = Array.isArray(last) ? (last as Token[][]) : null;
       const head = (block ? line.slice(0, -1) : line) as string[];
 
-      if (head[0] === "num" || head[0] === "text") {
-        variables.push(head[1]);
-        js += `let ${head[1]} ${head.slice(2).join(" ")};\n`;
-      } else if (head[0] === "print") {
-        js += `addLog(${head.slice(2, -1).join(" ")});\n`;
-      } else if (head[0] === "sprite") {
+      // if (head[0] === "num" || head[0] === "text") {
+      //   variables.push(head[1]);
+      //   js += `let ${head[1]} ${head.slice(2).join(" ")};\n`;
+      // }
+      // if (head[0] === "print") {
+      //   js += `addLog(${head.slice(2, -1).join(" ")});\n`;
+      // } 
+      if (head[0] === "sprite") {
         sprites.push(head[1]);
         variables.push(head[1]);
         if (head[3] === "makeShapeSprite") {
@@ -88,20 +101,28 @@ export const compile = (lines: Token[][], variables: string[]): string => {
           js += "draw();\n";
         }
       } else if (head[0] === "for") {
-        const name = head[2];
-        const close = head.lastIndexOf(")");
-        const count = head.slice(4, close).join(" ");
+        const decl = between(head, "(", ",");
+        const name = decl[decl.length - 1];
+        const count = between(head, ",", ")").join(" ");
         js += `for (let ${name} = 0, __n = (${count}); ${name} < __n; ${name}++)`;
         js += ` {\n${compileLines(block ?? [], [...variables, name])}}\n`;
       } else if (head[0] === "sleep") {
         js += `await sleep(${head.slice(2, -1).join(" ")});\n`;
+      } else if (head[0] === "clearLog") {
+        js += `clearLog();\n`;
+      } else if (head[0] === "onKeyDown") {
+        const args = between(head, "(", ")");
+        const arg = args[args.length - 1];   // "key"
+        js += `document.addEventListener("keydown", (${arg}) => {\n${compileLines(block ?? [], variables)}});\n`;
       } else if (CONTROL.includes(head[0]) || variables.includes(head[0])) {
         js += head.join(" ");
         js += block ? ` {\n${compileLines(block, variables)}}\n` : ";\n";
         // ${(head[0] == "while" && head[head.length - 1].indexOf("sleep") == -1) ? "await sleep(0);\n" : ""}
         if (!block && sprites.includes(head[0])) js += "draw();\n";
       } else {
-        continue;
+        js += head.join(" ");
+        js += block ? ` {\n${compileLines(block, variables)}}\n` : ";\n";
+        if (!block && sprites.includes(head[0])) js += "draw();\n";
       }
     }
     return js;
@@ -118,18 +139,32 @@ ${sprites.map(s => `  ${s}.draw();`).join("\n")}
   return spriteJs + drawJs + body;
 };
 
+const ALIASES: Record<string, string> = {
+  text: "let",
+  num: "let",
+  print: "addLog",
+};
+
 // コードをトークンずつに分ける
 export const splitCode = (code: string): Token[][] => {
   const root: Token[][] = [];
   const stack: Token[][][] = [root];
   const current = () => stack[stack.length - 1];
   let line: Token[] | null = null;
+  let prev = false;
 
   for (let [t] of code.matchAll(TOKEN_RE)) {
     if (t === "\n" || t === ";") { line = null; continue; }
     if (/^[ \t\r]+$/.test(t) || t.startsWith("//")) continue;
     const commandIndex = commands.findIndex(command => command.jp === t);
     if (commandIndex !== -1) t = commands[commandIndex].en;
+
+    if (prev != true && ALIASES[t]) {
+      t = ALIASES[t];
+    }
+
+    if (t == ".") prev = true;
+    else prev = false;
 
     if (t === "{") {
       const block: Token[][] = [];
