@@ -11,8 +11,36 @@ export const commands = [
   { en: "sleep", jp: "待つ" },
   { en: "onStart", jp: "スタートしたら" },
   { en: "onKeyDown", jp: "キーを押したら" },
+  { en: "onKeyUp", jp: "キーを離したら" },
   { en: "clearLog", jp: "ログをクリア" },
 ];
+
+export const RUNTIME = `
+(window.__cleanups ?? []).forEach(f => f()); 
+window.__cleanups = [];
+const __id = (window.__runId = (window.__runId ?? 0) + 1);
+const __check = () => { if (window.__runId !== __id) throw new Error("stopped"); };
+let __last = performance.now();
+
+const sleep = async (ms) => {
+  await new Promise((r) => setTimeout(r, ms));
+  __check();                    
+  __last = performance.now();
+};
+const __tick = async () => {
+  __check();
+  if (performance.now() - __last > 12) {
+    await new Promise((r) => setTimeout(r, 0));
+    __check();
+    __last = performance.now();
+  }
+};
+const __on = (type, fn) => {
+  document.addEventListener(type, fn);
+  window.__cleanups.push(() => document.removeEventListener(type, fn));
+};
+const __scripts = [];
+`;
 
 export const getCommand = (codeLine: any) => {
   return commands.findIndex(command => command.en === codeLine[0] || command.jp === codeLine[0]);
@@ -108,16 +136,20 @@ export const compile = (lines: Token[][], variables: string[]): string => {
         js += ` {\n${compileLines(block ?? [], [...variables, name])}}\n`;
       } else if (head[0] === "sleep") {
         js += `await sleep(${head.slice(2, -1).join(" ")});\n`;
-      } else if (head[0] === "clearLog") {
-        js += `clearLog();\n`;
-      } else if (head[0] === "onKeyDown") {
+      } else if (head[0] === "onStart") {
+        js += `__scripts.push(async () => {\n${compileLines(block ?? [], variables)}});\n`;
+      } else if (head[0] === "onKeyDown" || head[0] === "onKeyUp") {
         const args = between(head, "(", ")");
-        const arg = args[args.length - 1];   // "key"
-        js += `document.addEventListener("keydown", (${arg}) => {\n${compileLines(block ?? [], variables)}});\n`;
+        const arg = args[args.length - 1] ?? "key";
+        const type = head[0] === "onKeyDown" ? "keydown" : "keyup";
+        js += `__on("${type}", async (${arg}) => {\n${compileLines(block ?? [], variables)}});\n`;
       } else if (CONTROL.includes(head[0]) || variables.includes(head[0])) {
         js += head.join(" ");
-        js += block ? ` {\n${compileLines(block, variables)}}\n` : ";\n";
-        // ${(head[0] == "while" && head[head.length - 1].indexOf("sleep") == -1) ? "await sleep(0);\n" : ""}
+        const tick = (head[0] === "while" || head[0] === "for") ? "await __tick();\n" : "";
+        js += block
+          ? ` {\n${tick}${compileLines(block, variables)}}\n`
+          : ";\n";
+        // ${(head[0] == "while" && block?.findIndex((b:any)=>b.startsWith("sleep"))) ? "await sleep(0);\n" : ""}
         if (!block && sprites.includes(head[0])) js += "draw();\n";
       } else {
         js += head.join(" ");
@@ -125,18 +157,28 @@ export const compile = (lines: Token[][], variables: string[]): string => {
         if (!block && sprites.includes(head[0])) js += "draw();\n";
       }
     }
+    const runJs = `
+await Promise.all(__scripts.map(f => f().catch(e => {
+  if (e.message !== "stopped") { console.error(e); addLog("エラー: " + e.message + "\\n"); }
+})));
+`;
     return js;
   };
 
   const body = compileLines(lines, variables);
-
-  const drawJs =
-    `const draw = () => {
+    const drawJs =
+`const draw = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 ${sprites.map(s => `  ${s}.draw();`).join("\n")}
 };
 `;
-  return spriteJs + drawJs + body;
+  const runJs =
+    `await Promise.all(__scripts.map(f => f().catch(e => {
+  if (e.message !== "stopped") { console.error(e); addLog("エラー: " + e.message + "\\n"); }
+})));
+`;
+
+  return spriteJs + drawJs + body + runJs;
 };
 
 const ALIASES: Record<string, string> = {

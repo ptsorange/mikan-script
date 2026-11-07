@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getCommand, getInside, commands, splitCode, compile } from "@/lib/lang";
+import { splitCode, compile, RUNTIME } from "@/lib/lang";
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -37,34 +37,34 @@ export default function Home() {
   // jsCode = `let spriteData = ${JSON.stringify(spriteData)};\n` + jsCode;
 
   const runCode = () => {
-    const jsCode = 
-`(async () => {
+    const js = `(async () => {
 const canvas = document.getElementById("gameScreen");
 const ctx = canvas.getContext("2d");
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const log=document.getElementById("logBox")
-log.textContent="";
-const addLog=(textLog)=>{
-  log.textContent+=textLog;
-}
-const clearLog=()=>{
-  log.textContent="";
-}
+const log = document.getElementById("logBox");
+log.textContent = "";
+const addLog = (t) => { log.textContent += t; };
+const clearLog = () => { log.textContent = ""; };
+${RUNTIME}
 ${compile(splitCode(inputCode), [])}
 })();`;
-    try {
-      console.log(jsCode);
-      new Function("setLog", jsCode)(setLog);
-    } catch (e) {
-      console.error(e);
-    }
+    console.log(js);
+    new Function(js)();
+  };
+
+  const stopCode = () => {
+    (window as any).__runId = ((window as any).__runId ?? 0) + 1;
+    ((window as any).__cleanups ?? []).forEach((f: any) => f());
+    (window as any).__cleanups = [];
   };
 
   return (
     <div className="flex">
       <textarea id="codeEdittor" value={inputCode} onChange={(e) => onChange(e.target.value)} className="w-1/2" />
       <div className="flex flex-col">
-        <button onClick={(runCode)}>Run</button>
+        <div className="flex">
+          <button onClick={(runCode)}>Run</button>
+          <button onClick={(stopCode)}>stop</button>
+        </div>
         <canvas ref={canvasRef} id="gameScreen" width="400" height="300" className="border border-white m-1" />
         <pre id="logBox">{log}</pre>
       </div>
