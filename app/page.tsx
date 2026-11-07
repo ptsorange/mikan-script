@@ -44,6 +44,10 @@ const log = document.getElementById("logBox");
 log.textContent = "";
 const addLog = (t) => { log.textContent += t; };
 const clearLog = () => { log.textContent = ""; };
+const setScreenSize=(w,h)=>{
+  canvas.width=w;
+  canvas.height=h;
+}
 ${RUNTIME}
 ${compile(splitCode(inputCode), [])}
 })();`;

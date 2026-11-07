@@ -1,5 +1,6 @@
 export const commands = [
   { en: "print", jp: "表示" },
+  { en: "println", jp: "改行で表示" },
   { en: "text", jp: "テキスト" },
   { en: "num", jp: "数" },
   { en: "sprite", jp: "スプライト" },
@@ -13,6 +14,7 @@ export const commands = [
   { en: "onKeyDown", jp: "キーを押したら" },
   { en: "onKeyUp", jp: "キーを離したら" },
   { en: "clearLog", jp: "ログをクリア" },
+  { en: "setScreenSize", jp: "スクリーンサイズ" },
 ];
 
 export const RUNTIME = `
@@ -41,6 +43,20 @@ const __on = (type, fn) => {
 };
 const __scripts = [];
 `;
+
+const callArgs = (tokens: string[], open: number): string[] => {
+  const args: string[] = [];
+  let depth = 0, cur: string[] = [];
+  for (let i = open; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t === "(" || t === "[") { depth++; if (i === open) continue; }
+    else if (t === ")" || t === "]") { depth--; if (depth === 0) break; }
+    else if (t === "," && depth === 1) { args.push(cur.join(" ")); cur = []; continue; }
+    cur.push(t);
+  }
+  if (cur.length) args.push(cur.join(" "));
+  return args;
+};
 
 export const getCommand = (codeLine: any) => {
   return commands.findIndex(command => command.en === codeLine[0] || command.jp === codeLine[0]);
@@ -113,20 +129,11 @@ export const compile = (lines: Token[][], variables: string[]): string => {
         sprites.push(head[1]);
         variables.push(head[1]);
         if (head[3] === "makeShapeSprite") {
-          spriteJs +=
-            `const ${head[1]} = {
-  x: ${head[5]},
-  y: ${head[7]},
-  h: ${head[9]},
-  w: ${head[11]},
-  color: ${head[13]},
-  draw() {
-    ctx.fillStyle = this.color;
-    ctx.fillRect(this.x, this.y, this.h, this.w);
-  }
-};
-`;
-          js += "draw();\n";
+          const [x, y, w, h, color] = callArgs(head, 4);
+          spriteJs += `const ${head[1]} = {
+  x: ${x ?? 0}, y: ${y ?? 0}, w: ${w ?? 50}, h: ${h ?? 50}, color: ${color ?? '"white"'},
+  draw() { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.w, this.h); }
+};\n`;
         }
       } else if (head[0] === "for") {
         const decl = between(head, "(", ",");
@@ -166,8 +173,8 @@ await Promise.all(__scripts.map(f => f().catch(e => {
   };
 
   const body = compileLines(lines, variables);
-    const drawJs =
-`const draw = () => {
+  const drawJs =
+    `const draw = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 ${sprites.map(s => `  ${s}.draw();`).join("\n")}
 };
