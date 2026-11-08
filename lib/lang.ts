@@ -15,6 +15,8 @@ export const commands = [
   { en: "onKeyUp", jp: "キーを離したら" },
   { en: "clearLog", jp: "ログをクリア" },
   { en: "setScreenSize", jp: "スクリーンサイズ" },
+  { en: "random", jp: "ランダム" },
+  { en: "collide", jp: "当たり判定" },
 ];
 
 export const RUNTIME = `
@@ -41,6 +43,19 @@ const __on = (type, fn) => {
   document.addEventListener(type, fn);
   window.__cleanups.push(() => document.removeEventListener(type, fn));
 };
+
+const random = (a, b) => {
+  if (a === undefined) return Math.random();        
+  if (b === undefined) { b = a; a = 0; }             
+  return Math.floor(Math.random() * (b - a + 1)) + a; 
+};
+
+const collide = (a, b) =>
+  a.x < b.x + b.w &&
+  a.x + a.w > b.x &&
+  a.y < b.y + b.h &&
+  a.y + a.h > b.y;
+
 const __scripts = [];
 `;
 
@@ -125,31 +140,59 @@ export const compile = (lines: Token[][], variables: string[]): string => {
       // if (head[0] === "print") {
       //   js += `addLog(${head.slice(2, -1).join(" ")});\n`;
       // } 
+
+      // スプライト
       if (head[0] === "sprite") {
         sprites.push(head[1]);
         variables.push(head[1]);
-        if (head[3] === "makeShapeSprite") {
+
+        // 画像からスプライトを作成
+        if (head[3] === "makeSprite") {
+          // makeSprite("texture/cat.png", x, y, 幅, 高さ)
+          const [src, x, y, w, h] = callArgs(head, 4);
+          const img = `__img_${head[1]}`;
+          spriteJs += `const ${img} = __getTexture(${src ?? '""'});
+const ${head[1]} = {
+  x: ${x ?? 0}, y: ${y ?? 0},
+  w: ${w ?? `(${img}?.naturalWidth ?? 50)`},
+  h: ${h ?? `(${img}?.naturalHeight ?? 50)`},
+  img: ${img},
+  draw() { if (this.img) ctx.drawImage(this.img, this.x, this.y, this.w, this.h); }
+};\n`;
+
+          // 形からスプライトを作成
+        } else if (head[3] === "makeShapeSprite") {
+          // makeShapeSprite(x, y, 幅, 高さ, "色") — 四角いスプライト
           const [x, y, w, h, color] = callArgs(head, 4);
           spriteJs += `const ${head[1]} = {
   x: ${x ?? 0}, y: ${y ?? 0}, w: ${w ?? 50}, h: ${h ?? 50}, color: ${color ?? '"white"'},
   draw() { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.w, this.h); }
 };\n`;
         }
+
       } else if (head[0] === "for") {
         const decl = between(head, "(", ",");
         const name = decl[decl.length - 1];
         const count = between(head, ",", ")").join(" ");
         js += `for (let ${name} = 0, __n = (${count}); ${name} < __n; ${name}++)`;
         js += ` {\n${compileLines(block ?? [], [...variables, name])}}\n`;
+
+        //何ms待つsleep
       } else if (head[0] === "sleep") {
         js += `await sleep(${head.slice(2, -1).join(" ")});\n`;
+
+        // 非同期でコードを実行するonStart
       } else if (head[0] === "onStart") {
         js += `__scripts.push(async () => {\n${compileLines(block ?? [], variables)}});\n`;
+
+        // キーが押されたか離されたかを検知
       } else if (head[0] === "onKeyDown" || head[0] === "onKeyUp") {
         const args = between(head, "(", ")");
         const arg = args[args.length - 1] ?? "key";
         const type = head[0] === "onKeyDown" ? "keydown" : "keyup";
         js += `__on("${type}", async (${arg}) => {\n${compileLines(block ?? [], variables)}});\n`;
+
+        // CONTROLの中身OR変数なら
       } else if (CONTROL.includes(head[0]) || variables.includes(head[0])) {
         js += head.join(" ");
         const tick = (head[0] === "while" || head[0] === "for") ? "await __tick();\n" : "";
@@ -185,7 +228,7 @@ ${sprites.map(s => `  ${s}.draw();`).join("\n")}
 })));
 `;
 
-  return spriteJs + drawJs + body + runJs;
+  return spriteJs + drawJs + "draw();\n" + body + runJs;
 };
 
 const ALIASES: Record<string, string> = {
