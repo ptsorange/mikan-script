@@ -23,6 +23,9 @@ export const commands = [
   { en: "getNowKey", jp: "押しているキー" },
   { en: "isKey", jp: "キーが押されている" },
   { en: "mouse", jp: "マウス" },
+  { en: "playSound", jp: "音を鳴らす" },
+  { en: "stopSound", jp: "音を止める" },
+  { en: "await", jp: "終わるまで待つ" },
 ];
 
 export const RUNTIME = `
@@ -106,6 +109,54 @@ const mouse = {
 };
 const __inside = (s, px, py) =>
   px >= s.x && px <= s.x + s.w && py >= s.y && py <= s.y + s.h;
+
+// ---------- サウンド ----------
+// 鳴っている音の一覧
+const __sounds = new Set();
+// 「止める」を押したとき: 音をぜんぶ止めて、待っているコードにも止まったことを伝える
+window.__cleanups.push(() => [...__sounds].forEach((s) => s.end(true)));
+
+// playSound("sound/hit.wav", 音量(0〜1), くりかえし)
+//   await をつける    → 音が終わるまで次の行に進まない
+//   await をつけない  → 鳴らしたらすぐ次の行に進む
+const playSound = (name, volume = 1, loop = false) => {
+  const p = new Promise((resolve, reject) => {
+    const url = __getSound(name);
+    if (!url) return resolve();
+    const audio = new Audio(url);
+    const v = Number(volume);
+    audio.volume = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+    audio.loop = !!loop;
+    const s = {
+      name,
+      end(stopped) {
+        if (!__sounds.delete(s)) return;
+        audio.pause();
+        if (stopped) reject(new Error("stopped"));
+        else resolve();
+      },
+    };
+    __sounds.add(s);
+    audio.addEventListener("ended", () => s.end(false));
+    const fail = () => {
+      if (!__sounds.has(s)) return;
+      addLog("「" + name + "」を鳴らせなかったよ。\\n");
+      s.end(false);
+    };
+    audio.addEventListener("error", fail);
+    audio.play().catch(fail);
+  });
+  // await しなくても「エラーがでた」と怒られないようにする
+  p.catch(() => {});
+  return p;
+};
+
+// stopSound("sound/bgm.mp3") でその音だけ、stopSound() でぜんぶ止める
+const stopSound = (name) => {
+  [...__sounds].forEach((s) => {
+    if (name === undefined || s.name === name) s.end(false);
+  });
+};
 `;
 
 const commonMethods = `
