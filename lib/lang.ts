@@ -17,6 +17,12 @@ export const commands = [
   { en: "setScreenSize", jp: "スクリーンサイズ" },
   { en: "random", jp: "ランダム" },
   { en: "collide", jp: "当たり判定" },
+  { en: "function", jp: "関数" },
+  { en: "PI", jp: "円周率" },
+  { en: "foreach", jp: "それぞれ" },
+  { en: "getNowKey", jp: "押しているキー" },
+  { en: "isKey", jp: "キーが押されている" },
+  { en: "mouse", jp: "マウス" },
 ];
 
 export const RUNTIME = `
@@ -44,11 +50,27 @@ const __on = (type, fn) => {
   window.__cleanups.push(() => document.removeEventListener(type, fn));
 };
 
+const __keys = new Set();
+const __keyName = (k) => (k.length === 1 ? k.toLowerCase() : k);
+__on("keydown", (e) => __keys.add(__keyName(e.key)));
+__on("keyup", (e) => __keys.delete(__keyName(e.key)));
+// ウィンドウを離れたときに押しっぱなし扱いにならないようにする
+const __onBlur = () => __keys.clear();
+window.addEventListener("blur", __onBlur);
+window.__cleanups.push(() => window.removeEventListener("blur", __onBlur));
+
+const getNowKey = () => [...__keys];
+const isKey = (k) => __keys.has(__keyName(k));
+
 const random = (a, b) => {
   if (a === undefined) return Math.random();        
   if (b === undefined) { b = a; a = 0; }             
   return Math.floor(Math.random() * (b - a + 1)) + a; 
 };
+
+const toRadians = (degrees) => {
+    return degrees * (Math.PI / 180);
+}
 
 const collide = (a, b) =>
   a.x < b.x + b.w &&
@@ -57,7 +79,129 @@ const collide = (a, b) =>
   a.y + a.h > b.y;
 
 const __scripts = [];
+const __mouse = { x: 0, y: 0, buttons: new Set() };
+const __BTN = { left: 0, middle: 1, right: 2 };
+
+// キャンバス上の座標に変換する(CSSで拡大縮小されていてもずれない)
+__on("mousemove", (e) => {
+  const r = canvas.getBoundingClientRect();
+  __mouse.x = (e.clientX - r.left) * (canvas.width / r.width);
+  __mouse.y = (e.clientY - r.top) * (canvas.height / r.height);
+});
+// キャンバスの上で押したときだけ「押している」扱いにする
+__on("mousedown", (e) => { if (e.target === canvas) __mouse.buttons.add(e.button); });
+__on("mouseup", (e) => __mouse.buttons.delete(e.button));
+// 右クリックでメニューが出ないようにする(キャンバス上だけ)
+__on("contextmenu", (e) => { if (e.target === canvas) e.preventDefault(); });
+const __onBlurMouse = () => __mouse.buttons.clear();
+window.addEventListener("blur", __onBlurMouse);
+window.__cleanups.push(() => window.removeEventListener("blur", __onBlurMouse));
+
+const mouse = {
+  get x() { return __mouse.x; },
+  get y() { return __mouse.y; },
+  get left() { return __mouse.buttons.has(0); },
+  get middle() { return __mouse.buttons.has(1); },
+  get right() { return __mouse.buttons.has(2); },
+};
+const __inside = (s, px, py) =>
+  px >= s.x && px <= s.x + s.w && py >= s.y && py <= s.y + s.h;
 `;
+
+const commonMethods = `
+  move(speed) {
+    this.x += Math.cos(toRadians(this.r)) * speed;
+    this.y += Math.sin(toRadians(this.r)) * speed;
+  },
+  lookAt(target) {
+    const cx1 = this.x + this.w / 2;
+    const cy1 = this.y + this.h / 2;
+    const cx2 = target.x + target.w / 2;
+    const cy2 = target.y + target.h / 2;
+    this.r = Math.atan2(cy2 - cy1, cx2 - cx1) * (180 / Math.PI);
+  }`;
+
+const SPRITE_LIB = `
+const __spriteBase = {
+  move(speed) {
+    this.x += Math.cos(toRadians(this.r)) * speed;
+    this.y += Math.sin(toRadians(this.r)) * speed;
+  },
+  lookAt(target) {
+    const cx1 = this.x + this.w / 2, cy1 = this.y + this.h / 2;
+    const cx2 = target.x + target.w / 2, cy2 = target.y + target.h / 2;
+    this.r = Math.atan2(cy2 - cy1, cx2 - cx1) * (180 / Math.PI);
+  },
+  hasTag(t) { return this.tags.includes(t); },
+  addTag(t) { if (!this.tags.includes(t)) this.tags.push(t); },
+  removeTag(t) { this.tags = this.tags.filter(x => x !== t); },
+  isHovering() { return __inside(this, __mouse.x, __mouse.y); },
+  isClicking(button = "left") {
+    return __mouse.buttons.has(__BTN[button] ?? 0) && this.isHovering();
+  },
+};
+ 
+const makeSprite = (src, x = 0, y = 0, w, h) => {
+  const img = __getTexture(src ?? "");
+  return Object.assign(Object.create(__spriteBase), {
+    x, y, r: 0, tags: [], img,
+    w: w ?? (img?.naturalWidth ?? 50),
+    h: h ?? (img?.naturalHeight ?? 50),
+    draw() {
+      if (!this.img) return;
+      ctx.save();
+      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.rotate(toRadians(this.r));
+      ctx.drawImage(this.img, -this.w / 2, -this.h / 2, this.w, this.h);
+      ctx.restore();
+    },
+  });
+};
+ 
+const makeShapeSprite = (x = 0, y = 0, w = 50, h = 50, color = "white") =>
+  Object.assign(Object.create(__spriteBase), {
+    x, y, w, h, r: 0, color, tags: [],
+    draw() {
+      ctx.save();
+      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.rotate(toRadians(this.r));
+      ctx.fillStyle = this.color;
+      ctx.fillRect(-this.w / 2, -this.h / 2, this.w, this.h);
+      ctx.restore();
+    },
+  });
+ 
+const makeTextSprite = (text = "", x = 0, y = 0, size = 24, color = "white") =>
+  Object.assign(Object.create(__spriteBase), {
+    x, y, size, color, text, r: 0, tags: [],
+    get w() { ctx.font = this.size + "px sans-serif"; return ctx.measureText(String(this.text)).width; },
+    get h() { return this.size; },
+    draw() {
+      ctx.save();
+      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.rotate(toRadians(this.r));
+      ctx.font = this.size + "px sans-serif";
+      ctx.fillStyle = this.color;
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+      ctx.fillText(String(this.text), 0, 0);
+      ctx.restore();
+    },
+  });
+ 
+// スプライトのグループ(sprite enemys[] で作られる)
+const __makeGroup = () => {
+  const g = [];
+  g.add = (s, ...tags) => { tags.forEach(t => s.addTag(t)); g.push(s); return s; };
+  g.remove = (s) => { const i = g.indexOf(s); if (i !== -1) g.splice(i, 1); };
+  g.withTag = (t) => g.filter(s => s.hasTag(t));
+  g.hit = (target, tag) => g.find(s => (tag === undefined || s.hasTag(tag)) && collide(s, target));
+  g.clear = () => { g.length = 0; };
+  g.draw = () => g.forEach(s => s.draw());
+  return g;
+};
+`;
+
 
 const callArgs = (tokens: string[], open: number): string[] => {
   const args: string[] = [];
@@ -146,30 +290,22 @@ export const compile = (lines: Token[][], variables: string[]): string => {
         sprites.push(head[1]);
         variables.push(head[1]);
 
-        // 画像からスプライトを作成
-        if (head[3] === "makeSprite") {
-          // makeSprite("texture/cat.png", x, y, 幅, 高さ)
-          const [src, x, y, w, h] = callArgs(head, 4);
-          const img = `__img_${head[1]}`;
-          spriteJs += `const ${img} = __getTexture(${src ?? '""'});
-const ${head[1]} = {
-  x: ${x ?? 0}, y: ${y ?? 0},
-  w: ${w ?? `(${img}?.naturalWidth ?? 50)`},
-  h: ${h ?? `(${img}?.naturalHeight ?? 50)`},
-  img: ${img},
-  draw() { if (this.img) ctx.drawImage(this.img, this.x, this.y, this.w, this.h); }
-};\n`;
-
-          // 形からスプライトを作成
-        } else if (head[3] === "makeShapeSprite") {
-          // makeShapeSprite(x, y, 幅, 高さ, "色") — 四角いスプライト
-          const [x, y, w, h, color] = callArgs(head, 4);
-          spriteJs += `const ${head[1]} = {
-  x: ${x ?? 0}, y: ${y ?? 0}, w: ${w ?? 50}, h: ${h ?? 50}, color: ${color ?? '"white"'},
-  draw() { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.w, this.h); }
-};\n`;
+        if (head[2] === "[") {
+          // sprite enemys[]
+          spriteJs += `const ${head[1]} = __makeGroup();\n`;
+        } else if (head[2] === "=" && head[3] === "[" && head[4] === "]") {
+          // sprite enemys = []
+          spriteJs += `const ${head[1]} = __makeGroup();\n`;
+        } else if (["makeSprite", "makeShapeSprite", "makeTextSprite"].includes(head[3])) {
+          const args = callArgs(head, 4);
+          spriteJs += `const ${head[1]} = ${head[3]}(${args.join(", ")});\n`;
         }
-
+      } else if (head[0] === "foreach") {
+        const comma = head.indexOf(",");
+        const name = head[comma - 1];
+        const list = head.slice(comma + 1, -1).join(" ");
+        // [...] でコピーを回すので、ループ中の remove も安全
+        js += `for (const ${name} of [...(${list})]) {\nawait __tick();\n${compileLines(block ?? [], [...variables, name])}}\n`;
       } else if (head[0] === "for") {
         const decl = between(head, "(", ",");
         const name = decl[decl.length - 1];
@@ -228,13 +364,16 @@ ${sprites.map(s => `  ${s}.draw();`).join("\n")}
 })));
 `;
 
-  return spriteJs + drawJs + "draw();\n" + body + runJs;
+  return SPRITE_LIB + spriteJs + drawJs + "draw();\n" + body + runJs;
 };
 
 const ALIASES: Record<string, string> = {
   text: "let",
   num: "let",
   print: "addLog",
+  println: "addLogLn",
+  PI: "Math.PI",
+  function: "async function",
 };
 
 // コードをトークンずつに分ける
@@ -244,10 +383,17 @@ export const splitCode = (code: string): Token[][] => {
   const current = () => stack[stack.length - 1];
   let line: Token[] | null = null;
   let prev = false;
+  let parenDepth = 0; // () のネストの深さ
 
   for (let [t] of code.matchAll(TOKEN_RE)) {
-    if (t === "\n" || t === ";") { line = null; continue; }
+    if (t === "\n" || t === ";") {
+      // () の中なら改行・セミコロンでは行を区切らない
+      // (for(;;) のセミコロンも壊れなくなります)
+      if (parenDepth === 0) line = null;
+      continue;
+    }
     if (/^[ \t\r]+$/.test(t) || t.startsWith("//")) continue;
+
     const commandIndex = commands.findIndex(command => command.jp === t);
     if (commandIndex !== -1) t = commands[commandIndex].en;
 
@@ -257,6 +403,10 @@ export const splitCode = (code: string): Token[][] => {
 
     if (t == ".") prev = true;
     else prev = false;
+
+    // 括弧の深さを更新(文字列トークンは "(" と一致しないので影響なし)
+    if (t === "(") parenDepth++;
+    else if (t === ")" && parenDepth > 0) parenDepth--;
 
     if (t === "{") {
       const block: Token[][] = [];

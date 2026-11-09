@@ -11,6 +11,15 @@ import {
 } from "react";
 import { splitCode, compile, RUNTIME, commands } from "@/lib/lang";
 import "./editor.css";
+import JSZip from "jszip";
+
+const MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
 
 /* ---------- テクスチャ ---------- */
 
@@ -93,6 +102,9 @@ export default function Home() {
   const hlRef = useRef<HTMLPreElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const skipBlur = useRef(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
 
   const [inputCode, setInputCode] = useState("");
   const [textures, setTextures] = useState<Texture[]>([]);
@@ -100,6 +112,17 @@ export default function Home() {
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState("");
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
+
+  const toggleFullscreen = async () => {
+    const el = stageRef.current;
+    if (!el) return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await el.requestFullscreen();
+    } catch {
+      setNotice("フルスクリーンにできなかったよ。");
+    }
+  };
 
   // localStorage から読み込む
   useEffect(() => {
@@ -114,6 +137,9 @@ export default function Home() {
     } catch {
       /* 壊れたデータは無視する */
     }
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
   const lineCount = useMemo(() => inputCode.split("\n").length, [inputCode]);
@@ -169,13 +195,15 @@ export default function Home() {
   /* --- テクスチャの追加・名前変更・削除 --- */
 
   // 保存できたときだけ画面にも反映する(容量オーバーのとき用)
-  const saveTextures = (next: Texture[]) => {
+  const saveTextures = (next: Texture[]): boolean => {
     try {
       localStorage.setItem(TEXTURE_KEY, JSON.stringify(next));
       setTextures(next);
       setNotice("");
+      return true;
     } catch {
       setNotice("保存できなかったよ。画像が大きすぎるかも。小さい画像にしてためしてね。");
+      return false;
     }
   };
 
@@ -211,6 +239,52 @@ export default function Home() {
 
   const removeTexture = (name: string) => saveTextures(textures.filter((t) => t.name !== name));
 
+  /* --- プロジェクトの書き出し・読み込み (.mks) --- */
+
+  const exportProject = async () => {
+    const zip = new JSZip();
+    zip.file("code/main.mjs", inputCode);
+    textures.forEach((t) => {
+      zip.file(t.name, t.data.slice(t.data.indexOf(",") + 1), { base64: true });
+    });
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "project.mks";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const onImportProject = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!window.confirm("いまのプログラムと画像は、読み込むものに置きかわるよ。いい?")) return;
+
+    try {
+      const zip = await JSZip.loadAsync(file);
+
+      const codeFile = zip.file("code/main.mjs");
+      if (!codeFile) throw new Error("code/main.mjs が見つからないよ");
+      const code = await codeFile.async("string");
+
+      const imported: Texture[] = [];
+      for (const entry of Object.values(zip.files)) {
+        if (entry.dir || !entry.name.startsWith(PREFIX)) continue;
+        const mime = MIME[entry.name.split(".").pop()?.toLowerCase() ?? ""];
+        if (!mime) continue;
+        const base64 = await entry.async("base64");
+        const name = toPath(entry.name);
+        if (name) imported.push({ name, data: `data:${mime};base64,${base64}` });
+      }
+
+      if (saveTextures(imported)) onChange(code);
+    } catch (err: any) {
+      setNotice("読み込めなかったよ: " + (err?.message ?? String(err)));
+    }
+  };
+
   /* --- 実行 --- */
 
   const showError = (message: string) => {
@@ -241,6 +315,7 @@ const ctx = canvas.getContext("2d");
 const log = document.getElementById("logBox");
 log.textContent = "";
 const addLog = (t) => { log.textContent += t; };
+const addLogLn = (t) => { log.textContent += t+"\\n";};
 const clearLog = () => { log.textContent = ""; };
 const setScreenSize = (w, h) => {
   canvas.width = w;
@@ -258,7 +333,10 @@ ${compile(splitCode(inputCode), [])}
       console.log(js);
       await new Function("__textures", js)(textureMap);
     } catch (e: any) {
-      if (e?.message !== "stopped") showError(e?.message ?? String(e));
+      if (e?.message !== "stopped") {
+        showError(e?.message ?? String(e))
+        console.log(e);
+      };
     }
   };
 
@@ -275,6 +353,11 @@ ${compile(splitCode(inputCode), [])}
       <header className="kc-top">
         <div className="kc-title">main.code — コードでゲームをつくろう</div>
         <span className="kc-hint">Ctrl + Enter(Macは ⌘ + Enter)でも実行できるよ</span>
+        <button className="kc-btn" onClick={exportProject}>💾 書き出し</button>
+        <label className="kc-btn">
+          📂 読み込み
+          <input className="kc-sr" type="file" accept=".mks" onChange={onImportProject} />
+        </label>
       </header>
 
       <div className="kc-body">
@@ -394,7 +477,6 @@ ${compile(splitCode(inputCode), [])}
                 onChange={(e) => onChange(e.target.value)}
                 onScroll={syncScroll}
                 onSelect={updateCursor}
-                onKeyDown={onEditorKeyDown}
               />
             </div>
           </div>
@@ -402,14 +484,47 @@ ${compile(splitCode(inputCode), [])}
 
         <section className="kc-stage" aria-label="ステージ">
           <div className="kc-controls">
-            <button className="kc-btn kc-run" onClick={(e)=>{runCode();e.currentTarget.blur()}}>
+            <button className="kc-btn kc-run" onClick={(e) => { runCode(); e.currentTarget.blur() }}>
               ▶ 実行
             </button>
             <button className="kc-btn kc-stop" onClick={stopCode}>
               ■ 止める
             </button>
+            <button
+              className="kc-btn"
+              onClick={(e) => { toggleFullscreen(); e.currentTarget.blur(); }}
+            >
+              ⛶ フルスクリーン
+            </button>
           </div>
-          <canvas id="gameScreen" className="kc-canvas" width="400" height="300" />
+
+          <div className="kc-screen" ref={stageRef}>
+            {isFullscreen ?
+              <>
+                <div className="kc-controls m-[1%] mr-[75%]">
+                  <button className="kc-btn kc-run" onClick={(e) => { runCode(); e.currentTarget.blur() }}>
+                    ▶ 実行
+                  </button>
+                  <button className="kc-btn kc-stop" onClick={stopCode}>
+                    ■ 止める
+                  </button>
+                  <button
+                    className="kc-btn"
+                    onClick={(e) => { toggleFullscreen(); e.currentTarget.blur(); }}
+                  >
+                    🗗 もどす
+                  </button>
+                </div>
+              </> : null
+            }
+            <canvas
+              id="gameScreen"
+              className="kc-canvas"
+              width="400"
+              height="300"
+            //onDoubleClick={toggleFullscreen}
+            />
+          </div>
           <h2 className="kc-side-title">ログ</h2>
           <pre id="logBox" className="kc-log" />
         </section>
