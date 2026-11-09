@@ -501,7 +501,7 @@ ${compile(splitCode(inputCode), [])}
           <div className="kc-screen" ref={stageRef}>
             {isFullscreen ?
               <>
-                <div className="kc-controls m-[1%] mr-[75%]">
+                <div className="kc-controls mr-auto">
                   <button className="kc-btn kc-run" onClick={(e) => { runCode(); e.currentTarget.blur() }}>
                     ▶ 実行
                   </button>
