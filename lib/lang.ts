@@ -198,40 +198,80 @@ const makeSprite = (src, x = 0, y = 0, w, h) => {
     x, y, r: 0, tags: [], img,
     w: w ?? (img?.naturalWidth ?? 50),
     h: h ?? (img?.naturalHeight ?? 50),
+    flip: false,
+    size: 1,
     draw() {
       if (!this.img) return;
+      if(this.r>=360) this.r=0;
+      if(this.r<=-1) this.r=359;
       ctx.save();
-      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.translate(this.x + (this.w * this.size) / 2, this.y + (this.h * this.size) / 2);
       ctx.rotate(toRadians(this.r));
-      ctx.drawImage(this.img, -this.w / 2, -this.h / 2, this.w, this.h);
+      if(this.flip) ctx.scale(-1, 1);
+      ctx.drawImage(this.img, -(this.w * this.size) / 2, -(this.h * this.size) / 2, this.w * this.size, this.h * this.size);
       ctx.restore();
     },
   });
 };
- 
-const makeShapeSprite = (x = 0, y = 0, w = 50, h = 50, color = "white") =>
+
+const makeShapeSprite = (shape = 4, x = 0, y = 0, w = 50, h = 50, color = "white") =>
   Object.assign(Object.create(__spriteBase), {
-    x, y, w, h, r: 0, color, tags: [],
+    shape, x, y, w, h, r: 0, color, tags: [],
+    flip: false,
+    size: 1,
     draw() {
       ctx.save();
-      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      const sw = this.w * this.size;
+      const sh = this.h * this.size;
+      ctx.translate(this.x + sw / 2, this.y + sh / 2);
       ctx.rotate(toRadians(this.r));
+      if (this.flip) ctx.scale(-1, 1);
       ctx.fillStyle = this.color;
-      ctx.fillRect(-this.w / 2, -this.h / 2, this.w, this.h);
+
+      ctx.beginPath();
+      const rad = Math.min(sw, sh) / 2;
+
+      if (typeof this.shape === "number") {
+        for (let i = 0; i < this.shape; i++) {
+          const a = (i * 2 * Math.PI) / this.shape - Math.PI / 2;
+          const px = rad * Math.cos(a), py = rad * Math.sin(a);
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+      } else if (this.shape === "star") {
+        for (let i = 0; i < 10; i++) {
+          const a = (i * Math.PI) / 5 - Math.PI / 2;
+          const r = i % 2 === 0 ? rad : rad / 2;
+          const px = r * Math.cos(a), py = r * Math.sin(a);
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+      } else {
+        ctx.rect(-sw / 2, -sh / 2, sw, sh);
+      }
+
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
     },
   });
- 
-const makeTextSprite = (text = "", x = 0, y = 0, size = 24, color = "white") =>
+
+const makeTextSprite = (text = "", x = 0, y = 0, fontSize = 24, color = "white") =>
   Object.assign(Object.create(__spriteBase), {
-    x, y, size, color, text, r: 0, tags: [],
-    get w() { ctx.font = this.size + "px sans-serif"; return ctx.measureText(String(this.text)).width; },
-    get h() { return this.size; },
+    x, y, fontSize, color, text, r: 0, tags: [],
+    flip: false,
+    size: 1,
+    get w() { 
+      ctx.font = (this.fontSize * this.size) + "px sans-serif"; 
+      return ctx.measureText(String(this.text)).width; 
+    },
+    get h() { 
+      return this.fontSize * this.size; 
+    },
     draw() {
       ctx.save();
       ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
       ctx.rotate(toRadians(this.r));
-      ctx.font = this.size + "px sans-serif";
+      if(this.flip) ctx.scale(-1, 1);
+      ctx.font = (this.fontSize * this.size) + "px sans-serif";
       ctx.fillStyle = this.color;
       ctx.textBaseline = "middle";
       ctx.textAlign = "center";
@@ -239,7 +279,6 @@ const makeTextSprite = (text = "", x = 0, y = 0, size = 24, color = "white") =>
       ctx.restore();
     },
   });
- 
 // スプライトのグループ(sprite enemys[] で作られる)
 const __makeGroup = () => {
   const g = [];
