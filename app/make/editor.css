@@ -40,7 +40,7 @@
 /* VS Code のタイトルバー: 左にアイコン、まん中にファイル名、右にヒント */
 .kc-top {
   display: grid;
-  grid-template-columns: 1fr auto 0.5fr 0.5fr;
+  grid-template-columns: auto 1fr minmax(90px, 170px) minmax(70px, 120px) auto auto auto;
   align-items: center;
   gap: 12px;
   height: 34px;
@@ -50,6 +50,23 @@
   color: var(--muted);
   font-size: 12px;
 }
+.kc-top a.kc-btn {
+  padding: 3px 12px;
+  font-size: 12px;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.12);
+}
+.kc-meta {
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0f1119;
+  color: #fff;
+  font: 12px var(--ui);
+}
+.kc-meta::placeholder { color: var(--muted); }
+.kc-meta:focus-visible { outline: 2px solid var(--purple); }
 .kc-logo {
   justify-self: start;
   padding: 1px 7px;
