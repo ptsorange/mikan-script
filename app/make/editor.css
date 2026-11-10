@@ -40,7 +40,7 @@
 /* VS Code のタイトルバー: 左にアイコン、まん中にファイル名、右にヒント */
 .kc-top {
   display: grid;
-  grid-template-columns: auto 1fr minmax(90px, 170px) minmax(70px, 120px) auto auto auto;
+  grid-template-columns: auto 1fr auto auto auto;
   align-items: center;
   gap: 12px;
   height: 34px;
@@ -56,17 +56,46 @@
   text-decoration: none;
   background: rgba(255, 255, 255, 0.12);
 }
-.kc-meta {
+.kc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.kc-field input,
+.kc-field textarea {
+  width: 100%;
   min-width: 0;
-  padding: 3px 8px;
+  padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #0f1119;
-  color: #fff;
-  font: 12px var(--ui);
+  color: var(--text);
+  font: 13px var(--ui);
+  resize: vertical;
 }
-.kc-meta::placeholder { color: var(--muted); }
-.kc-meta:focus-visible { outline: 2px solid var(--purple); }
+.kc-field input::placeholder,
+.kc-field textarea::placeholder { color: var(--muted); }
+.kc-field input:focus-visible,
+.kc-field textarea:focus-visible { outline: 2px solid var(--purple); }
+.kc-count { align-self: flex-end; font-size: 11px; }
+.kc-thumb-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0f1119;
+}
+.kc-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .kc-logo {
   justify-self: start;
   padding: 1px 7px;

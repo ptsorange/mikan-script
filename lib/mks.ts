@@ -2,7 +2,8 @@ import JSZip from "jszip";
 import { splitCode, compile, RUNTIME } from "@/lib/lang";
 
 /* .mks ファイル(zip)まわりの、エディタと「あそぶ」ページで共通の処理。
-   中身:  code/main.mjs ・ texture/* ・ sound/* ・ meta.json(あれば) */
+   中身:  code/main.mjs ・ texture/* ・ sound/* ・ config.json(あれば) ・ thumbnail.png(あれば)
+   config.json と thumbnail.png は zip の一番上(ルート)に置く */
 
 export const MIME: Record<string, string> = {
   png: "image/png",
@@ -46,10 +47,22 @@ export const toPath = (raw: string, kind: Kind, fallbackExt?: string) => {
   return k.prefix + n;
 };
 
-/* ---------- 作品の情報(meta.json) ---------- */
+/* ---------- 作品の情報(config.json)とサムネイル(thumbnail.png) ---------- */
 
 export type Meta = { title: string; author: string; description: string };
 export const EMPTY_META: Meta = { title: "", author: "", description: "" };
+
+export const CONFIG_NAME = "config.json";
+const LEGACY_CONFIG_NAMES = ["meta.json"]; // 古い名前(あれば読む)
+export const THUMBNAIL_NAME = "thumbnail.png";
+// 書き出しは thumbnail.png。手で zip に入れるときは、これらの名前でも読める
+const THUMBNAIL_NAMES = [
+  THUMBNAIL_NAME,
+  "thumbnail.jpg",
+  "thumbnail.jpeg",
+  "thumbnail.webp",
+  "sumnail.png",
+];
 
 // どんな JSON が来ても、安全な文字列だけの Meta にする
 export const toMeta = (raw: unknown): Meta => {
@@ -62,13 +75,64 @@ export const toMeta = (raw: unknown): Meta => {
   };
 };
 
+// zip の一番上にある config.json を読む(なければ空、こわれていても空)
+export const readConfig = async (zip: JSZip): Promise<Meta> => {
+  const file = [CONFIG_NAME, ...LEGACY_CONFIG_NAMES].map((n) => zip.file(n)).find(Boolean);
+  if (!file) return EMPTY_META;
+  try {
+    return toMeta(JSON.parse(await file.async("string")));
+  } catch {
+    return EMPTY_META;
+  }
+};
+
+// zip の一番上にあるサムネイルを探す
+export const findThumbnail = (zip: JSZip): { file: JSZip.JSZipObject; mime: string } | null => {
+  for (const name of THUMBNAIL_NAMES) {
+    const file = zip.file(name);
+    const mime = MIME[extOf(name)];
+    if (file && mime) return { file, mime };
+  }
+  return null;
+};
+
+// 画像(data URL)を、サムネ用に小さくして PNG にする。透明なところは背景色でうめる
+export const toThumbnail = (src: string, maxWidth = 480): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / (img.naturalWidth || 1));
+      const w = Math.max(1, Math.round(img.naturalWidth * scale));
+      const h = Math.max(1, Math.round(img.naturalHeight * scale));
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      if (!ctx) return reject(new Error("画像を作れなかったよ"));
+      ctx.fillStyle = "#1d1f2e";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("画像を読み込めなかったよ"));
+    img.src = src;
+  });
+
 /* ---------- 書き出し・読み込み ---------- */
 
-export const buildMks = async (code: string, assets: Asset[], meta: Meta): Promise<Blob> => {
+export const buildMks = async (
+  code: string,
+  assets: Asset[],
+  meta: Meta,
+  thumbnail: string | null
+): Promise<Blob> => {
   const zip = new JSZip();
   zip.file("code/main.mjs", code);
   if (meta.title || meta.author || meta.description) {
-    zip.file("meta.json", JSON.stringify(meta, null, 2));
+    zip.file(CONFIG_NAME, JSON.stringify(meta, null, 2));
+  }
+  if (thumbnail) {
+    zip.file(THUMBNAIL_NAME, thumbnail.slice(thumbnail.indexOf(",") + 1), { base64: true });
   }
   assets.forEach((a) => {
     zip.file(a.name, a.data.slice(a.data.indexOf(",") + 1), { base64: true });
@@ -78,22 +142,18 @@ export const buildMks = async (code: string, assets: Asset[], meta: Meta): Promi
 
 export const parseMks = async (
   input: Blob | ArrayBuffer | Uint8Array
-): Promise<{ code: string; assets: Asset[]; meta: Meta }> => {
+): Promise<{ code: string; assets: Asset[]; meta: Meta; thumbnail: string | null }> => {
   const zip = await JSZip.loadAsync(input);
 
   const codeFile = zip.file("code/main.mjs");
   if (!codeFile) throw new Error("code/main.mjs が見つからないよ");
   const code = await codeFile.async("string");
 
-  let meta = EMPTY_META;
-  const metaFile = zip.file("meta.json");
-  if (metaFile) {
-    try {
-      meta = toMeta(JSON.parse(await metaFile.async("string")));
-    } catch {
-      /* 壊れた meta.json は無視する */
-    }
-  }
+  const meta = await readConfig(zip);
+
+  let thumbnail: string | null = null;
+  const thumb = findThumbnail(zip);
+  if (thumb) thumbnail = `data:${thumb.mime};base64,${await thumb.file.async("base64")}`;
 
   const assets: Asset[] = [];
   for (const entry of Object.values(zip.files)) {
@@ -106,7 +166,7 @@ export const parseMks = async (
     const name = toPath(entry.name, kind);
     if (name) assets.push({ name, data: `data:${mime};base64,${base64}` });
   }
-  return { code, assets, meta };
+  return { code, assets, meta, thumbnail };
 };
 
 // public/projects/ の作品を取ってきて読み込む

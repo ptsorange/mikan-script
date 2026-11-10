@@ -20,6 +20,7 @@ import {
   toPath,
   buildMks,
   parseMks,
+  toThumbnail,
   fetchProject,
   prepareAssets,
   buildScript,
@@ -35,10 +36,11 @@ import "./editor.css";
 /* ---------- ファイル(texture/ と sound/) ---------- */
 
 // 左端の縦バー(VS Code のアクティビティバー)で切りかえるパネル
-type Panel = "explorer" | "texture" | "sound";
+type Panel = "explorer" | "info" | "texture" | "sound";
 
 const PANELS: { id: Panel; label: string }[] = [
   { id: "explorer", label: "エクスプローラー(書き出しの中身)" },
+  { id: "info", label: "作品の情報(タイトル・説明・サムネ)" },
   { id: "texture", label: "テクスチャ" },
   { id: "sound", label: "サウンド" },
 ];
@@ -59,6 +61,13 @@ const ICONS: Record<Panel, ReactNode> = {
       <path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v12A1.5 1.5 0 0 0 7.5 18h9a1.5 1.5 0 0 0 1.5-1.5V7l-4-4z" />
       <path d="M14 3v4.5a.5.5 0 0 0 .5.5H18" />
       <path d="M9 21h8.5a2.5 2.5 0 0 0 2.5-2.5V10" />
+    </svg>
+  ),
+  info: (
+    <svg {...svgProps}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
     </svg>
   ),
   texture: (
@@ -90,6 +99,7 @@ const fmtSize = (n: number) =>
 
 const CODE_KEY = "code";
 const META_KEY = "meta";
+const THUMB_KEY = "thumbnail";
 const LEGACY_TEXTURE_KEY = "textures"; // 前のバージョンが localStorage に入れていた画像
 
 const readAsDataUrl = (file: File) =>
@@ -222,6 +232,7 @@ export default function Editor() {
 
   const [inputCode, setInputCode] = useState("");
   const [meta, setMeta] = useState<Meta>(EMPTY_META);
+  const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [panel, setPanel] = useState<Panel | null>("texture"); // 開いているパネル(null = 閉じている)
   const [closed, setClosed] = useState<Record<string, boolean>>({}); // 閉じているフォルダ
@@ -249,6 +260,7 @@ export default function Editor() {
     try {
       const m = JSON.parse(localStorage.getItem(META_KEY) ?? "null");
       if (m) setMeta({ ...EMPTY_META, ...m });
+      setThumbnail(localStorage.getItem(THUMB_KEY));
     } catch {
       /* 壊れたデータは無視する */
     }
@@ -270,6 +282,7 @@ export default function Editor() {
               setAssets(p.assets);
               setInputCode(p.code);
               setMeta(p.meta);
+              saveThumbnail(p.thumbnail);
               localStorage.setItem(CODE_KEY, p.code);
               localStorage.setItem(META_KEY, JSON.stringify(p.meta));
               window.history.replaceState(null, "", "/make"); // リロードで確認がまた出ないように
@@ -335,6 +348,39 @@ export default function Editor() {
     const next = { ...meta, [key]: value };
     setMeta(next);
     localStorage.setItem(META_KEY, JSON.stringify(next));
+  };
+
+  // サムネイルは localStorage に入れる(小さくしてあるので入る。入らなかったら画面だけ)
+  function saveThumbnail(data: string | null) {
+    setThumbnail(data);
+    try {
+      if (data) localStorage.setItem(THUMB_KEY, data);
+      else localStorage.removeItem(THUMB_KEY);
+    } catch {
+      setNotice("サムネイルを保存できなかったよ。書き出しまでは、このページを開いたままにしてね。");
+    }
+  }
+
+  const onPickThumbnail = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      saveThumbnail(await toThumbnail(await readAsDataUrl(file)));
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "サムネイルにできなかったよ。");
+    }
+  };
+
+  // いま実行画面に出ている絵を、そのままサムネにする
+  const captureThumbnail = async () => {
+    const canvas = document.getElementById("gameScreen") as HTMLCanvasElement | null;
+    if (!canvas) return;
+    try {
+      saveThumbnail(await toThumbnail(canvas.toDataURL("image/png")));
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "サムネイルにできなかったよ。");
+    }
   };
 
   /* --- エディタまわり --- */
@@ -491,7 +537,7 @@ export default function Editor() {
   /* --- プロジェクトの書き出し・読み込み (.mks) --- */
 
   const exportProject = async () => {
-    const blob = await buildMks(inputCode, assets, meta);
+    const blob = await buildMks(inputCode, assets, meta, thumbnail);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -507,12 +553,13 @@ export default function Editor() {
     if (!window.confirm("いまのプログラムと画像・音は、読み込むものに置きかわるよ。いい?")) return;
 
     try {
-      const { code, assets: imported, meta: importedMeta } = await parseMks(file);
+      const { code, assets: imported, meta: importedMeta, thumbnail: importedThumb } = await parseMks(file);
 
       stopPreview();
       if (await saveAssets(imported)) {
         onChange(code);
         setMeta(importedMeta);
+        saveThumbnail(importedThumb);
         localStorage.setItem(META_KEY, JSON.stringify(importedMeta));
       }
     } catch (err: any) {
@@ -706,10 +753,78 @@ export default function Editor() {
     );
   };
 
+  // 作品の情報: 一覧に出るタイトル・説明・サムネ(書き出すと config.json と thumbnail.png になる)
+  const renderInfo = () => (
+    <>
+      <h2 className="kc-side-title">作品の情報</h2>
+
+      <label className="kc-field">
+        <span>タイトル</span>
+        <input
+          value={meta.title}
+          maxLength={60}
+          placeholder="たとえば: みかんよけゲーム"
+          onChange={(e) => onMetaChange("title", e.target.value)}
+        />
+      </label>
+      <label className="kc-field">
+        <span>作った人</span>
+        <input
+          value={meta.author}
+          maxLength={40}
+          placeholder="なまえ"
+          onChange={(e) => onMetaChange("author", e.target.value)}
+        />
+      </label>
+      <label className="kc-field">
+        <span>説明</span>
+        <textarea
+          value={meta.description}
+          maxLength={200}
+          rows={4}
+          placeholder="どんなゲーム? あそびかたは?"
+          onChange={(e) => onMetaChange("description", e.target.value)}
+        />
+        <span className="kc-count">{meta.description.length} / 200</span>
+      </label>
+
+      <div className="kc-field">
+        <span>サムネイル</span>
+        <div className="kc-thumb-box">
+          {thumbnail ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={thumbnail} alt="サムネイル" />
+          ) : (
+            <p className="kc-empty">まだないよ</p>
+          )}
+        </div>
+      </div>
+      <button className="kc-add" onClick={captureThumbnail}>
+        📷 いまの実行画面をサムネにする
+      </button>
+      <label className="kc-add kc-add-sound">
+        <input className="kc-sr" type="file" accept="image/*" onChange={onPickThumbnail} />
+        ＋ 画像をえらぶ
+      </label>
+      {thumbnail && (
+        <button className="kc-add kc-add-sound" onClick={() => saveThumbnail(null)}>
+          ✕ サムネをはずす
+        </button>
+      )}
+
+      <p className="kc-tip">
+        「書き出し」で、<b>config.json</b> と <b>thumbnail.png</b> が project.mks の一番上に入るよ。
+        ホームの一覧には、これが出るよ。先に「▶ 実行」してから撮ると、ゲーム画面がサムネになるよ。
+      </p>
+    </>
+  );
+
   // エクスプローラー: 「書き出し」で作られる project.mks (zip) の中身
   const renderExplorer = () => {
     const total = codeBytes + assets.reduce((sum, a) => sum + assetBytes(a), 0);
-    const fileCount = 1 + assets.length;
+    const hasConfig = !!(meta.title || meta.author || meta.description);
+    const rootFiles = (hasConfig ? 1 : 0) + (thumbnail ? 1 : 0);
+    const fileCount = 1 + assets.length + rootFiles;
     return (
       <>
         <h2 className="kc-side-title">エクスプローラー</h2>
@@ -717,6 +832,22 @@ export default function Editor() {
         {renderFolderRow("root", "project.mks", fileCount)}
         {!closed.root && (
           <ul className="kc-files">
+            {hasConfig && (
+              <li className="kc-file">
+                <button className="kc-file-main" title="クリックで、作品の情報を開く" onClick={() => showPanel("info")}>
+                  <span></span>
+                  <span>config.json</span>
+                </button>
+              </li>
+            )}
+            {thumbnail && (
+              <li className="kc-file">
+                <button className="kc-file-main" title="クリックで、作品の情報を開く" onClick={() => showPanel("info")}>
+                  <span></span>
+                  <span>thumbnail.png</span>
+                </button>
+              </li>
+            )}
             <li>
               {renderFolderRow("code", "code", 1)}
               {!closed.code && (
@@ -793,22 +924,6 @@ export default function Editor() {
           🍊 ホーム
         </Link>
         <div className="kc-title">main.code — コードでゲームをつくろう</div>
-        <input
-          className="kc-meta"
-          value={meta.title}
-          maxLength={60}
-          placeholder="作品のタイトル"
-          aria-label="作品のタイトル"
-          onChange={(e) => onMetaChange("title", e.target.value)}
-        />
-        <input
-          className="kc-meta"
-          value={meta.author}
-          maxLength={40}
-          placeholder="作った人"
-          aria-label="作った人"
-          onChange={(e) => onMetaChange("author", e.target.value)}
-        />
         <span className="kc-hint">Ctrl + Enter(Macは ⌘ + Enter)でも実行できるよ</span>
         <button className="kc-btn" onClick={exportProject}>💾 書き出し</button>
         <label className="kc-btn">
@@ -820,7 +935,6 @@ export default function Editor() {
       <div className={`kc-body${panel ? "" : " is-collapsed"}`}>
         <nav className="kc-activity" aria-label="サイドバーの切りかえ">
           {PANELS.map(({ id, label }) => {
-            const count = id === "explorer" ? 0 : byKind[id].length;
             const active = panel === id;
             return (
               <button
@@ -843,6 +957,7 @@ export default function Editor() {
           aria-label="サイドバー"
         >
           {panel === "explorer" && renderExplorer()}
+          {panel === "info" && renderInfo()}
           {(panel === "texture" || panel === "sound") && renderAssetPanel(panel)}
           {panel && notice && (
             <p className="kc-notice" role="alert">

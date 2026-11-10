@@ -32,6 +32,24 @@ export default async function Home() {
               key={p.id}
               className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-black/[0.03] p-5 dark:border-white/15 dark:bg-white/[0.06]"
             >
+              <Link
+                href={`/play/${encodeURIComponent(p.id)}`}
+                tabIndex={-1}
+                aria-hidden="true"
+                className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl bg-[#1d1f2e]"
+              >
+                {p.hasThumbnail ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/thumbnails/${encodeURIComponent(p.id)}`}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-5xl opacity-60">🍊</span>
+                )}
+              </Link>
               <div className="flex-1">
                 <h2 className="text-lg font-bold break-words">{p.title}</h2>
                 {p.author && <p className="text-xs opacity-60">作った人: {p.author}</p>}
