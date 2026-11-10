@@ -75,11 +75,32 @@ const toRadians = (degrees) => {
     return degrees * (Math.PI / 180);
 }
 
-const collide = (a, b) =>
-  a.x < b.x + b.w &&
-  a.x + a.w > b.x &&
-  a.y < b.y + b.h &&
-  a.y + a.h > b.y;
+// スプライトの表示サイズと、middle に応じた当たり判定用の矩形を返す
+const __spriteSize = (s) => ({
+  w: s.__textSprite ? s.w : s.w * (s.size ?? 1),
+  h: s.__textSprite ? s.h : s.h * (s.size ?? 1),
+});
+const __spriteBounds = (s) => {
+  const d = __spriteSize(s);
+  return {
+    x: s.middle ? s.x - d.w / 2 : s.x,
+    y: s.middle ? s.y - d.h / 2 : s.y,
+    w: d.w,
+    h: d.h,
+  };
+};
+const __spriteCenter = (s) => {
+  const b = __spriteBounds(s);
+  return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+};
+const collide = (a, b) => {
+  const A = __spriteBounds(a);
+  const B = __spriteBounds(b);
+  return A.x < B.x + B.w &&
+    A.x + A.w > B.x &&
+    A.y < B.y + B.h &&
+    A.y + A.h > B.y;
+};
 
 const __scripts = [];
 const __mouse = { x: 0, y: 0, buttons: new Set() };
@@ -107,8 +128,10 @@ const mouse = {
   get middle() { return __mouse.buttons.has(1); },
   get right() { return __mouse.buttons.has(2); },
 };
-const __inside = (s, px, py) =>
-  px >= s.x && px <= s.x + s.w && py >= s.y && py <= s.y + s.h;
+const __inside = (s, px, py) => {
+  const b = __spriteBounds(s);
+  return px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+};
 
 // ---------- サウンド ----------
 // 鳴っている音の一覧
@@ -179,9 +202,9 @@ const __spriteBase = {
     this.y += Math.sin(toRadians(this.r)) * speed;
   },
   lookAt(target) {
-    const cx1 = this.x + this.w / 2, cy1 = this.y + this.h / 2;
-    const cx2 = target.x + target.w / 2, cy2 = target.y + target.h / 2;
-    this.r = Math.atan2(cy2 - cy1, cx2 - cx1) * (180 / Math.PI);
+    const c1 = __spriteCenter(this);
+    const c2 = __spriteCenter(target);
+    this.r = Math.atan2(c2.y - c1.y, c2.x - c1.x) * (180 / Math.PI);
   },
   hasTag(t) { return this.tags.includes(t); },
   addTag(t) { if (!this.tags.includes(t)) this.tags.push(t); },
@@ -192,6 +215,7 @@ const __spriteBase = {
   },
 };
  
+// middle=false: x/y are the top-left. middle=true: x/y are the center.
 const makeSprite = (src, x = 0, y = 0, w, h) => {
   const img = __getTexture(src ?? "");
   return Object.assign(Object.create(__spriteBase), {
@@ -200,12 +224,17 @@ const makeSprite = (src, x = 0, y = 0, w, h) => {
     h: h ?? (img?.naturalHeight ?? 50),
     flip: false,
     size: 1,
+    middle: false,
     draw() {
       if (!this.img) return;
       if(this.r>=360) this.r=0;
       if(this.r<=-1) this.r=359;
       ctx.save();
-      ctx.translate(this.x + (this.w * this.size) / 2, this.y + (this.h * this.size) / 2);
+      const sw = this.w * this.size;
+      const sh = this.h * this.size;
+      const cx = this.middle ? this.x : this.x + sw / 2;
+      const cy = this.middle ? this.y : this.y + sh / 2;
+      ctx.translate(cx, cy);
       ctx.rotate(toRadians(this.r));
       if(this.flip) ctx.scale(-1, 1);
       ctx.drawImage(this.img, -(this.w * this.size) / 2, -(this.h * this.size) / 2, this.w * this.size, this.h * this.size);
@@ -214,16 +243,20 @@ const makeSprite = (src, x = 0, y = 0, w, h) => {
   });
 };
 
+// makeShapeSprite also supports middle=true for center-based coordinates.
 const makeShapeSprite = (shape = 4, x = 0, y = 0, w = 50, h = 50, color = "white") =>
   Object.assign(Object.create(__spriteBase), {
     shape, x, y, w, h, r: 0, color, tags: [],
     flip: false,
     size: 1,
+    middle: false,
     draw() {
       ctx.save();
       const sw = this.w * this.size;
       const sh = this.h * this.size;
-      ctx.translate(this.x + sw / 2, this.y + sh / 2);
+      const cx = this.middle ? this.x : this.x + sw / 2;
+      const cy = this.middle ? this.y : this.y + sh / 2;
+      ctx.translate(cx, cy);
       ctx.rotate(toRadians(this.r));
       if (this.flip) ctx.scale(-1, 1);
       ctx.fillStyle = this.color;
@@ -254,11 +287,14 @@ const makeShapeSprite = (shape = 4, x = 0, y = 0, w = 50, h = 50, color = "white
     },
   });
 
+// makeTextSprite also supports middle=true; its w/h getters already include size.
 const makeTextSprite = (text = "", x = 0, y = 0, fontSize = 24, color = "white") =>
   Object.assign(Object.create(__spriteBase), {
     x, y, fontSize, color, text, r: 0, tags: [],
     flip: false,
     size: 1,
+    middle: false,
+    __textSprite: true,
     get w() { 
       ctx.font = (this.fontSize * this.size) + "px sans-serif"; 
       return ctx.measureText(String(this.text)).width; 
@@ -268,7 +304,9 @@ const makeTextSprite = (text = "", x = 0, y = 0, fontSize = 24, color = "white")
     },
     draw() {
       ctx.save();
-      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      const cx = this.middle ? this.x : this.x + this.w / 2;
+      const cy = this.middle ? this.y : this.y + this.h / 2;
+      ctx.translate(cx, cy);
       ctx.rotate(toRadians(this.r));
       if(this.flip) ctx.scale(-1, 1);
       ctx.font = (this.fontSize * this.size) + "px sans-serif";
