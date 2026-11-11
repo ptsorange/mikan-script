@@ -50,7 +50,7 @@
   color: var(--muted);
   font-size: 12px;
 }
-.kc-top a.kc-btn {
+.kc-top .kc-btn {
   padding: 3px 12px;
   font-size: 12px;
   text-decoration: none;
@@ -501,6 +501,7 @@ button.kc-add {
   border-left: 1px solid var(--line);
 }
 .kc-canvas {
+  image-rendering: pixelated; /* 縮小・拡大でも、ピクセルをぼかさない */
   align-self: flex-start;
   max-width: 100%;
   height: auto;

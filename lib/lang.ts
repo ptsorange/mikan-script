@@ -35,6 +35,7 @@ const __id = (window.__runId = (window.__runId ?? 0) + 1);
 const __check = () => { if (window.__runId !== __id) throw new Error("stopped"); };
 let __last = performance.now();
 
+
 const sleep = async (ms) => {
   await new Promise((r) => setTimeout(r, ms));
   __check();                    
@@ -136,22 +137,37 @@ const __inside = (s, px, py) => {
 // ---------- サウンド ----------
 // 鳴っている音の一覧
 const __sounds = new Set();
-// 「止める」を押したとき: 音をぜんぶ止めて、待っているコードにも止まったことを伝える
+let __currentVolume = 1; // 現在の音量（0〜1）
+
+// 音量を一括変更する関数（関数宣言にすることで初期化前エラーを防ぐ）
+function setGlobalVolume(v) {
+  __currentVolume = Math.min(1, Math.max(0, Number(v)));
+  [...__sounds].forEach((s) => {
+    if (s.audio) {
+      s.audio.volume = Math.min(1, Math.max(0, s.baseVolume * __currentVolume));
+    }
+  });
+}
+
+// 「止める」を押したとき
 window.__cleanups.push(() => [...__sounds].forEach((s) => s.end(true)));
 
-// playSound("sound/hit.wav", 音量(0〜1), くりかえし)
-//   await をつける    → 音が終わるまで次の行に進まない
-//   await をつけない  → 鳴らしたらすぐ次の行に進む
 const playSound = (name, volume = 1, loop = false) => {
   const p = new Promise((resolve, reject) => {
     const url = __getSound(name);
     if (!url) return resolve();
     const audio = new Audio(url);
-    const v = Number(volume);
-    audio.volume = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+    const baseVolume = Number(volume);
+    const v = Number.isFinite(baseVolume) ? Math.min(1, Math.max(0, baseVolume)) : 1;
+    
+    // 初期音量を設定
+    audio.volume = Math.min(1, Math.max(0, v * __currentVolume));
     audio.loop = !!loop;
+    
     const s = {
       name,
+      audio,
+      baseVolume: v,
       end(stopped) {
         if (!__sounds.delete(s)) return;
         audio.pause();
@@ -169,12 +185,10 @@ const playSound = (name, volume = 1, loop = false) => {
     audio.addEventListener("error", fail);
     audio.play().catch(fail);
   });
-  // await しなくても「エラーがでた」と怒られないようにする
   p.catch(() => {});
   return p;
 };
 
-// stopSound("sound/bgm.mp3") でその音だけ、stopSound() でぜんぶ止める
 const stopSound = (name) => {
   [...__sounds].forEach((s) => {
     if (name === undefined || s.name === name) s.end(false);

@@ -241,6 +241,7 @@ export default function Editor() {
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState("");
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
+  const [volume, setVolume] = useState("100");
 
   const toggleFullscreen = async () => {
     const el = stageRef.current;
@@ -273,7 +274,7 @@ export default function Editor() {
         const hasWork = savedCode !== null && savedCode !== SAMPLE_CODE;
         const ok =
           !hasWork ||
-          window.confirm("いまのプログラムと画像・音は、「" + loadId + "」に置きかわるよ。いい?");
+          window.confirm("現在のプログラムと画像・音を、「" + loadId + "」の内容で置き換えます。よろしいですか?");
         if (ok) {
           try {
             const p = await fetchProject(loadId);
@@ -289,7 +290,7 @@ export default function Editor() {
               return;
             }
           } catch (err: any) {
-            if (alive) setNotice("作品を読み込めなかったよ: " + (err?.message ?? String(err)));
+            if (alive) setNotice("作品を読み込めませんでした: " + (err?.message ?? String(err)));
           }
         } else {
           window.history.replaceState(null, "", "/make");
@@ -357,7 +358,7 @@ export default function Editor() {
       if (data) localStorage.setItem(THUMB_KEY, data);
       else localStorage.removeItem(THUMB_KEY);
     } catch {
-      setNotice("サムネイルを保存できなかったよ。書き出しまでは、このページを開いたままにしてね。");
+      setNotice("サムネイルを保存できませんでした。書き出しが終わるまで、このページを開いたままにしてください。");
     }
   }
 
@@ -368,7 +369,7 @@ export default function Editor() {
     try {
       saveThumbnail(await toThumbnail(await readAsDataUrl(file)));
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "サムネイルにできなかったよ。");
+      setNotice(err instanceof Error ? err.message : "サムネイルを設定できませんでした。");
     }
   };
 
@@ -379,7 +380,7 @@ export default function Editor() {
     try {
       saveThumbnail(await toThumbnail(canvas.toDataURL("image/png")));
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "サムネイルにできなかったよ。");
+      setNotice(err instanceof Error ? err.message : "サムネイルを設定できませんでした。");
     }
   };
 
@@ -586,7 +587,7 @@ export default function Editor() {
     soundUrlsRef.current = prepared.soundUrls;
 
     try {
-      const js = buildScript(inputCode);
+      const js = buildScript(inputCode,Number(volume));
       console.log(js);
       await runScript(js, prepared);
     } catch (e: any) {
@@ -753,6 +754,19 @@ export default function Editor() {
     );
   };
 
+  // 再生中のゲームのグローバル音量を更新する関数などを作るか、
+// もしくは実行中のウィンドウオブジェクト経由で即座に反映させます
+const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const newVol = e.target.value;
+  setVolume(newVol);
+  
+  // 実行中のウィンドウに直接音量を反映させる仕組み（例）
+  const w = window as any;
+  if (typeof w.setGlobalVolume === "function") {
+    w.setGlobalVolume(Number(newVol) / 100);
+  }
+};
+
   // 作品の情報: 一覧に出るタイトル・説明・サムネ(書き出すと config.json と thumbnail.png になる)
   const renderInfo = () => (
     <>
@@ -763,16 +777,16 @@ export default function Editor() {
         <input
           value={meta.title}
           maxLength={60}
-          placeholder="たとえば: みかんよけゲーム"
+          placeholder="例: みかん回避ゲーム"
           onChange={(e) => onMetaChange("title", e.target.value)}
         />
       </label>
       <label className="kc-field">
-        <span>作った人</span>
+        <span>作者</span>
         <input
           value={meta.author}
           maxLength={40}
-          placeholder="なまえ"
+          placeholder="名前"
           onChange={(e) => onMetaChange("author", e.target.value)}
         />
       </label>
@@ -782,7 +796,7 @@ export default function Editor() {
           value={meta.description}
           maxLength={200}
           rows={4}
-          placeholder="どんなゲーム? あそびかたは?"
+          placeholder="ゲームの内容や遊び方"
           onChange={(e) => onMetaChange("description", e.target.value)}
         />
         <span className="kc-count">{meta.description.length} / 200</span>
@@ -795,26 +809,26 @@ export default function Editor() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={thumbnail} alt="サムネイル" />
           ) : (
-            <p className="kc-empty">まだないよ</p>
+            <p className="kc-empty">未設定</p>
           )}
         </div>
       </div>
       <button className="kc-add" onClick={captureThumbnail}>
-        📷 いまの実行画面をサムネにする
+        📷 実行画面をサムネイルに設定
       </button>
       <label className="kc-add kc-add-sound">
         <input className="kc-sr" type="file" accept="image/*" onChange={onPickThumbnail} />
-        ＋ 画像をえらぶ
+        ＋ 画像を選択
       </label>
       {thumbnail && (
         <button className="kc-add kc-add-sound" onClick={() => saveThumbnail(null)}>
-          ✕ サムネをはずす
+          ✕ サムネイルを削除
         </button>
       )}
 
       <p className="kc-tip">
-        「書き出し」で、<b>config.json</b> と <b>thumbnail.png</b> が project.mks の一番上に入るよ。
-        ホームの一覧には、これが出るよ。先に「▶ 実行」してから撮ると、ゲーム画面がサムネになるよ。
+        「書き出し」を押すと、<b>config.json</b> と <b>thumbnail.png</b> が project.mks の最上位に保存されます。
+        ホームの作品一覧には、この内容が表示されます。先に「▶ 実行」してから設定すると、ゲーム画面をサムネイルにできます。
       </p>
     </>
   );
@@ -834,7 +848,7 @@ export default function Editor() {
           <ul className="kc-files">
             {hasConfig && (
               <li className="kc-file">
-                <button className="kc-file-main" title="クリックで、作品の情報を開く" onClick={() => showPanel("info")}>
+                <button className="kc-file-main" title="クリックで作品の情報を開く" onClick={() => showPanel("info")}>
                   <span></span>
                   <span>config.json</span>
                 </button>
@@ -842,7 +856,7 @@ export default function Editor() {
             )}
             {thumbnail && (
               <li className="kc-file">
-                <button className="kc-file-main" title="クリックで、作品の情報を開く" onClick={() => showPanel("info")}>
+                <button className="kc-file-main" title="クリックで作品の情報を開く" onClick={() => showPanel("info")}>
                   <span></span>
                   <span>thumbnail.png</span>
                 </button>
@@ -920,7 +934,7 @@ export default function Editor() {
   return (
     <div className="kc-app">
       <header className="kc-top">
-        <Link href="/" className="kc-btn" title="みんなの作品を見る">
+        <Link href="/" className="kc-btn" title="作品一覧">
           🍊 ホーム
         </Link>
         <div className="kc-title">main.code — コードでゲームをつくろう</div>
@@ -1014,6 +1028,7 @@ export default function Editor() {
             >
               ⛶ フルスクリーン
             </button>
+            <input type="range" className="w-[75]" value={volume} onChange={handleVolumeChange} min="0" max="100" step="1"/>
           </div>
 
           <div className="kc-screen" ref={stageRef}>
@@ -1032,6 +1047,7 @@ export default function Editor() {
                   >
                     🗗 もどす
                   </button>
+                  <input type="range" value={volume} onChange={(e) => setVolume(e.target.value)} min="0" max="100" step="1"/>
                 </div>
               </> : null
             }

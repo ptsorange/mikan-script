@@ -1,0 +1,518 @@
+/* ホーム・プレイ・404 の見た目。配色はエディタ(editor.css)と同じ。
+   ヘッダー・フッターは一般的なサイト用の形で、エディタの VS Code ふうの上バー・ステータスバーは使わない。
+   名前は .ms- で始まるものだけ使う */
+
+.ms-app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 100dvh;
+  background: var(--ink);
+  color: var(--text);
+  font-size: 14px;
+}
+.ms-app *,
+.ms-app *::before,
+.ms-app *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- ヘッダー ---------- */
+.ms-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--line);
+  background: rgba(29, 31, 46, 0.92);
+  backdrop-filter: blur(8px);
+}
+.ms-header-inner,
+.ms-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+.ms-header-inner { height: 56px; }
+.ms-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.ms-nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.ms-nav-link {
+  color: var(--muted);
+  text-decoration: none;
+}
+.ms-nav-link:hover { color: var(--text); }
+.ms-header .ms-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+}
+.ms-brand:focus-visible,
+.ms-nav-link:focus-visible,
+.ms-footer a:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ---------- フッター ---------- */
+.ms-footer {
+  border-top: 1px solid var(--line);
+  background: #181a27;
+  color: var(--muted);
+  font-size: 13px;
+}
+.ms-footer-inner {
+  flex-wrap: wrap;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+.ms-footer-copy { margin: 0; }
+.ms-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.ms-footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.ms-footer a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* ---------- ボタン ---------- */
+.ms-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: 700 14px var(--ui);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.28);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.ms-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
+}
+.ms-btn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.ms-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ms-btn-green { background: var(--green); }
+.ms-btn-red { background: var(--red); }
+.ms-btn-blue { background: var(--blue); }
+.ms-btn-purple { background: var(--purple); }
+.ms-btn-big {
+  padding: 12px 36px;
+  font-size: 20px;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.32);
+}
+.ms-btn-big:active:not(:disabled) {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.32);
+  transform: translateY(3px);
+}
+
+/* ---------- 共通 ---------- */
+.ms-main {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 20px 48px;
+}
+.ms-muted { margin: 0; color: var(--muted); }
+
+/* 長い文字を枠の中でおさめる: 1 行は ... で省略、複数行は行数で切って ... にする */
+.ms-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ms-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lines, 2);
+  line-clamp: var(--lines, 2);
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- ホーム ---------- */
+.ms-hero { margin-bottom: 24px; }
+.ms-hero h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 700;
+}
+.ms-hero p { margin: 0; color: var(--muted); }
+.ms-empty {
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+}
+.ms-empty code {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--ink);
+  font: 12px var(--mono);
+}
+
+.ms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* カード: 上にサムネ、下に「再生ボタン | タイトル・説明」 */
+.ms-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  transition: border-color 0.12s;
+}
+.ms-card:hover,
+.ms-card:focus-within { border-color: var(--purple); }
+.ms-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--ink);
+  font-size: 44px;
+}
+.ms-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ms-thumb-empty { opacity: 0.5; }
+.ms-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.ms-play-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-size: 18px;
+  text-decoration: none;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.28);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.ms-play-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
+}
+.ms-play-btn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.ms-card-text {
+  flex: 1;
+  min-width: 0;
+}
+.ms-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.ms-card-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.ms-card-title a:hover { text-decoration: underline; }
+.ms-card-title a:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.ms-card-desc {
+  --lines: 2;
+  min-height: 3em; /* 説明が短くても、2 行ぶんの高さをそろえる */
+  margin: 2px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ---------- プレイ ---------- */
+.ms-play-head { margin-bottom: 16px; }
+.ms-play-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.ms-play-author {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font: 12px var(--mono);
+}
+/* 上: 作品 | 説明、下: ログ */
+.ms-play-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 630px) minmax(240px, 1fr);
+  grid-template-rows: auto auto;   /* 追加 */
+  gap: 16px;
+}
+.ms-log-panel { grid-column: 1 / -1; }
+.ms-stage,
+.ms-panel {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.ms-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ms-panel h2 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+/* 説明パネル: 高さは左の作品パネルで決まる。説明が長いときはパネル内でスクロール */
+.ms-side {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+.ms-side-desc {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  overflow-y: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.ms-side-inner {
+  position: absolute;   /* 中身はグリッドの高さに影響しない */
+  inset: 14px;          /* .ms-panel の padding と同じ */
+  display: flex;
+  flex-direction: column;
+}
+.ms-side-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+.ms-side-actions .ms-btn {
+  padding: 5px 14px;
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .ms-play-grid { grid-template-columns: minmax(0, 1fr); }
+  .ms-side { height: 260px; }   /* 好きな高さに */
+  .ms-header-inner { height: 52px; }
+  .ms-nav { gap: 12px; }
+}
+.ms-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+/* ゲーム画面の枠: 最大 600 x 400(3:2)。狭い画面では、同じ比のまま小さくなる */
+.ms-screen {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 3 / 2;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #12141d;
+  box-shadow: 0 0 0 3px var(--line);
+}
+/* canvas は縦横比を保ち、枠の中央に置く。枠より大きいときだけ縮める(拡大はしない)。
+   縮小・拡大でも、ピクセルをぼかさずくっきり表示する */
+.ms-canvas {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  background: var(--ink);
+  image-rendering: pixelated;
+}
+.ms-log {
+  min-height: 3rem;
+  max-height: 220px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--ink);
+  font: 13px/1.6 var(--mono);
+  white-space: pre-wrap;
+}
+
+/* スタート画面: ゲーム画面の上に重ねる。サムネがあれば、薄く背景に敷く */
+.ms-start {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background:
+    linear-gradient(rgba(24, 26, 39, 0.72), rgba(24, 26, 39, 0.9)),
+    var(--thumb, none) center / cover no-repeat,
+    var(--ink);
+  text-align: center;
+}
+.ms-start-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+}
+.ms-start-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.ms-error { margin: 0; color: #ff8a8a; }
+
+/* フルスクリーン: 黒い背景の中央に、比を保ったまま拡大して表示する。
+   canvas の大きさは Player.tsx が計算して指定する(1 倍以上は整数倍にして、ピクセルをくっきり出す) */
+.ms-screen:fullscreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
+  aspect-ratio: auto;
+  padding: 16px;
+  border-radius: 0;
+  background: #000;
+  box-shadow: none;
+}
+.ms-screen:fullscreen .ms-canvas {
+  position: static;
+  inset: auto;
+  flex: none;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+}
+.ms-screen:fullscreen .ms-controls { margin-right: auto; }
+
+@media (max-width: 760px) {
+  .ms-play-grid { grid-template-columns: minmax(0, 1fr); }
+  .ms-header-inner { height: 52px; }
+  .ms-nav { gap: 12px; }
+}
+
+/* ---------- 404 ---------- */
+.ms-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+.ms-404 {
+  margin: 0;
+  color: var(--yellow);
+  font: 700 clamp(64px, 18vw, 120px) / 1 var(--mono);
+}
+.ms-center h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.ms-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-btn,
+  .ms-card,
+  .ms-play-btn { transition: none; }
+}
+
+/* ---------- スクロールバー ---------- */
+.ms-app ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.ms-app ::-webkit-scrollbar-track,
+.ms-app ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.ms-app ::-webkit-scrollbar-thumb {
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background: #4a5075;
+  background-clip: content-box;
+}
+.ms-app ::-webkit-scrollbar-thumb:hover {
+  background: #5a628f;
+  background-clip: content-box;
+}
+/* Firefox など */
+@supports not selector(::-webkit-scrollbar) {
+  .ms-app * {
+    scrollbar-width: thin;
+    scrollbar-color: #4a5075 transparent;
+  }
+}

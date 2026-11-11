@@ -108,13 +108,13 @@ export const toThumbnail = (src: string, maxWidth = 480): Promise<string> =>
       c.width = w;
       c.height = h;
       const ctx = c.getContext("2d");
-      if (!ctx) return reject(new Error("画像を作れなかったよ"));
+      if (!ctx) return reject(new Error("画像を作成できませんでした"));
       ctx.fillStyle = "#1d1f2e";
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
       resolve(c.toDataURL("image/png"));
     };
-    img.onerror = () => reject(new Error("画像を読み込めなかったよ"));
+    img.onerror = () => reject(new Error("画像を読み込めませんでした"));
     img.src = src;
   });
 
@@ -146,7 +146,7 @@ export const parseMks = async (
   const zip = await JSZip.loadAsync(input);
 
   const codeFile = zip.file("code/main.mjs");
-  if (!codeFile) throw new Error("code/main.mjs が見つからないよ");
+  if (!codeFile) throw new Error("code/main.mjs が見つかりません");
   const code = await codeFile.async("string");
 
   const meta = await readConfig(zip);
@@ -172,7 +172,7 @@ export const parseMks = async (
 // public/projects/ の作品を取ってきて読み込む
 export const fetchProject = async (id: string) => {
   const res = await fetch(`/projects/${encodeURIComponent(id)}.mks`);
-  if (!res.ok) throw new Error("作品が見つからないよ");
+  if (!res.ok) throw new Error("作品が見つかりません");
   return parseMks(await res.arrayBuffer());
 };
 
@@ -217,9 +217,11 @@ export const prepareAssets = async (assets: Asset[]): Promise<Prepared> => {
 };
 
 // ページの中に id="gameScreen"(canvas) と id="logBox" がある前提で動く
-export const buildScript = (code: string) => `return (async () => {
+export const buildScript = (code: string, volume: number) => `return (async () => {
+const scriptVolume = ${volume};
 const canvas = document.getElementById("gameScreen");
 const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false; // 拡大・縮小しても、ピクセルをぼかさない
 const log = document.getElementById("logBox");
 log.textContent = "";
 const addLog = (t) => { log.textContent += t; };
@@ -228,6 +230,7 @@ const clearLog = () => { log.textContent = ""; };
 const setScreenSize = (w, h) => {
   canvas.width = w;
   canvas.height = h;
+  ctx.imageSmoothingEnabled = false; // canvas の大きさを変えると設定が戻るので、もう一度指定する
   draw();
 };
 const __getTexture = (name) => {
@@ -241,6 +244,15 @@ const __getSound = (name) => {
   return url;
 };
 ${RUNTIME}
+
+// ★ ここで window にグローバル音量変更関数を登録する
+window.setGlobalVolume = setGlobalVolume;
+
+// RUNTIME が読み込まれたあとに初期音量を反映
+if (typeof setGlobalVolume === "function") {
+  setGlobalVolume(${volume} / 100);
+}
+
 ${compile(splitCode(code), [])}
 })();`;
 
