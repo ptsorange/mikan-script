@@ -22,16 +22,15 @@ import {
   parseMks,
   toThumbnail,
   fetchProject,
-  prepareAssets,
-  buildScript,
-  runScript,
-  stopScript,
   EMPTY_META,
   type Kind,
   type Asset,
   type Meta,
 } from "@/lib/mks";
+import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
 import "./editor.css";
+
+const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないように、古い分から捨てる
 
 /* ---------- ファイル(texture/ と sound/) ---------- */
 
@@ -227,7 +226,8 @@ export default function Editor() {
   const skipBlur = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLAudioElement | null>(null);
-  const soundUrlsRef = useRef<string[]>([]); // 実行のたびに作る音の URL(次の実行で捨てる)
+  const frameRef = useRef<GameFrameHandle>(null); // 作品を動かす iframe(隔離された画面)
+  const logRef = useRef<HTMLPreElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [inputCode, setInputCode] = useState("");
@@ -375,10 +375,10 @@ export default function Editor() {
 
   // いま実行画面に出ている絵を、そのままサムネにする
   const captureThumbnail = async () => {
-    const canvas = document.getElementById("gameScreen") as HTMLCanvasElement | null;
-    if (!canvas) return;
     try {
-      saveThumbnail(await toThumbnail(canvas.toDataURL("image/png")));
+      const shot = await frameRef.current?.capture();
+      if (!shot) return;
+      saveThumbnail(await toThumbnail(shot));
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "サムネイルを設定できませんでした。");
     }
@@ -570,36 +570,25 @@ export default function Editor() {
 
   /* --- 実行 --- */
 
-  const showError = (message: string) => {
-    const log = document.getElementById("logBox");
-    if (log) log.textContent += "エラー: " + message + "\n";
+  const appendLog = (text: string) => {
+    const el = logRef.current;
+    if (!el) return;
+    const next = el.textContent + text;
+    el.textContent = next.length > MAX_LOG_CHARS ? next.slice(-MAX_LOG_CHARS) : next;
+  };
+  const clearLog = () => {
+    if (logRef.current) logRef.current.textContent = "";
   };
 
-  const runCode = async () => {
-    // 前の実行を止めて(音も止まる)、前の音の URL を捨てる
-    stopCode();
+  // 作品は、隔離された iframe の中で動く(ここのクッキーや保存データには触れない)。
+  // 実行のたびに iframe を作りなおすので、前の実行と音は全部消える
+  const runCode = () => {
     stopPreview();
-    soundUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-    soundUrlsRef.current = [];
-
-    // 画像と音をぜんぶ読み込んでおく
-    const prepared = await prepareAssets(assets);
-    soundUrlsRef.current = prepared.soundUrls;
-
-    try {
-      const js = buildScript(inputCode,Number(volume));
-      console.log(js);
-      await runScript(js, prepared);
-    } catch (e: any) {
-      if (e?.message !== "stopped") {
-        showError(e?.message ?? String(e));
-        console.log(e);
-      }
-    }
+    frameRef.current?.run(inputCode, assets, Number(volume));
   };
 
-  // 止めると、鳴っている音も止まる(RUNTIME の cleanup が止める)
-  const stopCode = () => stopScript();
+  // 止めると、鳴っている音も止まる
+  const stopCode = () => frameRef.current?.stop();
 
   /* --- 見た目 --- */
 
@@ -754,18 +743,12 @@ export default function Editor() {
     );
   };
 
-  // 再生中のゲームのグローバル音量を更新する関数などを作るか、
-// もしくは実行中のウィンドウオブジェクト経由で即座に反映させます
-const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const newVol = e.target.value;
-  setVolume(newVol);
-  
-  // 実行中のウィンドウに直接音量を反映させる仕組み（例）
-  const w = window as any;
-  if (typeof w.setGlobalVolume === "function") {
-    w.setGlobalVolume(Number(newVol) / 100);
-  }
-};
+  // 動いているゲームの音量を、すぐに変える(iframe の中に postMessage で伝える)
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVol = e.target.value;
+    setVolume(newVol);
+    frameRef.current?.setVolume(Number(newVol));
+  };
 
   // 作品の情報: 一覧に出るタイトル・説明・サムネ(書き出すと config.json と thumbnail.png になる)
   const renderInfo = () => (
@@ -1047,20 +1030,21 @@ const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   >
                     🗗 もどす
                   </button>
-                  <input type="range" value={volume} onChange={(e) => setVolume(e.target.value)} min="0" max="100" step="1"/>
+                  <input type="range" value={volume} onChange={handleVolumeChange} min="0" max="100" step="1"/>
                 </div>
               </> : null
             }
-            <canvas
-              id="gameScreen"
+            <GameFrame
+              ref={frameRef}
               className="kc-canvas"
-              width="400"
-              height="300"
-            //onDoubleClick={toggleFullscreen}
+              // 全画面では、CSS(.kc-screen:fullscreen .kc-canvas)で高さいっぱいに広げる
+              style={isFullscreen ? { width: "auto", height: "100%" } : undefined}
+              onLog={appendLog}
+              onClearLog={clearLog}
             />
           </div>
           <h2 className="kc-side-title">ログ</h2>
-          <pre id="logBox" className="kc-log" />
+          <pre ref={logRef} className="kc-log" />
         </section>
       </div>
 

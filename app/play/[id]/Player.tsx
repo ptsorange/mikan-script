@@ -2,15 +2,11 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import {
-  fetchProject,
-  prepareAssets,
-  buildScript,
-  runScript,
-  stopScript,
-  type Asset,
-} from "@/lib/mks";
+import { fetchProject, type Asset } from "@/lib/mks";
 import type { ProjectInfo } from "@/lib/projects";
+import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
+
+const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないように、古い分から捨てる
 
 /* レイアウト:
      タイトル
@@ -20,12 +16,15 @@ import type { ProjectInfo } from "@/lib/projects";
 export default function Player({ project }: { project: ProjectInfo }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<HTMLButtonElement>(null);
-  const soundUrlsRef = useRef<string[]>([]);
+  const frameRef = useRef<GameFrameHandle>(null);
+  const logRef = useRef<HTMLPreElement>(null);
   const [data, setData] = useState<{ code: string; assets: Asset[] } | null>(null);
   const [error, setError] = useState("");
   const [started, setStarted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [volume, setVolume] = useState("100");
+  const [size, setSize] = useState({ w: 400, h: 300 }); // 作品の画面の大きさ(setScreenSize で変わる)
+  const [fsBox, setFsBox] = useState<{ w: number; h: number } | null>(null); // 全画面での表示サイズ
 
   // 作品を読み込む。ページを離れるときは、ゲームも音も止める
   useEffect(() => {
@@ -39,8 +38,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
     return () => {
       alive = false;
       document.removeEventListener("fullscreenchange", onFs);
-      stopScript();
-      soundUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      // ゲームと音は、iframe がページと一緒に消えるので止まる
     };
   }, [project.id]);
 
@@ -49,61 +47,46 @@ export default function Player({ project }: { project: ProjectInfo }) {
     if (data && !started) startRef.current?.focus({ preventScroll: true });
   }, [data, started]);
 
-  // フルスクリーン中は、画面に収まる最大の大きさを計算して canvas に指定する。
+  // フルスクリーン中は、画面に収まる最大の大きさを計算して iframe に指定する。
   // 縦横比は保つ。拡大は整数倍にして、ピクセルをくっきり表示する(収まらないときだけ縮小)。
+  // 作品の大きさ(size)は iframe から届いた値。ゲームが setScreenSize で変えても追従する。
   useEffect(() => {
     if (!isFullscreen) return;
     const stage = stageRef.current;
-    const canvas = document.getElementById("gameScreen") as HTMLCanvasElement | null;
-    if (!stage || !canvas) return;
+    if (!stage) return;
 
     const PADDING = 16;
     const GAP = 16;
-    let raf = 0;
-    let last = "";
     const fit = () => {
       const controlsH = stage.querySelector<HTMLElement>(".ms-controls")?.offsetHeight ?? 0;
       const availW = stage.clientWidth - PADDING * 2;
       const availH = stage.clientHeight - PADDING * 2 - (controlsH ? controlsH + GAP : 0);
-      if (availW > 0 && availH > 0 && canvas.width > 0 && canvas.height > 0) {
-        let scale = Math.min(availW / canvas.width, availH / canvas.height);
-        if (scale >= 1) scale = Math.floor(scale);
-        const w = Math.max(1, Math.floor(canvas.width * scale));
-        const h = Math.max(1, Math.floor(canvas.height * scale));
-        const key = `${w}x${h}`;
-        if (key !== last) {
-          last = key;
-          canvas.style.width = `${w}px`;
-          canvas.style.height = `${h}px`;
-        }
-      }
-      raf = requestAnimationFrame(fit); // ゲームが setScreenSize で大きさを変えても追従する
+      if (availW <= 0 || availH <= 0) return;
+      let scale = Math.min(availW / size.w, availH / size.h);
+      if (scale >= 1) scale = Math.floor(scale);
+      const w = Math.max(1, Math.floor(size.w * scale));
+      const h = Math.max(1, Math.floor(size.h * scale));
+      setFsBox((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
     };
-    fit();
+    const ro = new ResizeObserver(fit); // observe した直後にも 1 回呼ばれる
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [isFullscreen, size]);
 
-    return () => {
-      cancelAnimationFrame(raf);
-      canvas.style.width = "";
-      canvas.style.height = "";
-    };
-  }, [isFullscreen]);
+  const appendLog = (text: string) => {
+    const el = logRef.current;
+    if (!el) return;
+    const next = el.textContent + text;
+    el.textContent = next.length > MAX_LOG_CHARS ? next.slice(-MAX_LOG_CHARS) : next;
+  };
+  const clearLog = () => {
+    if (logRef.current) logRef.current.textContent = "";
+  };
 
-  const run = async () => {
+  const run = () => {
     if (!data) return;
     setStarted(true); // スタート画面をすぐ消す
-    stopScript();
-    soundUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-    const prepared = await prepareAssets(data.assets);
-    soundUrlsRef.current = prepared.soundUrls;
-    try {
-      await runScript(buildScript(data.code,Number(volume)), prepared);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      if (message !== "stopped") {
-        const log = document.getElementById("logBox");
-        if (log) log.textContent += "エラー: " + message + "\n";
-      }
-    }
+    frameRef.current?.run(data.code, data.assets, Number(volume));
   };
 
   const toggleFullscreen = async () => {
@@ -115,15 +98,10 @@ export default function Player({ project }: { project: ProjectInfo }) {
     }
   };
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const newVol = e.target.value;
-  setVolume(newVol);
-  
-  // 実行中のウィンドウに直接音量を反映させる仕組み（例）
-  const w = window as any;
-  if (typeof w.setGlobalVolume === "function") {
-    w.setGlobalVolume(Number(newVol) / 100);
-  }
-};
+    const newVol = e.target.value;
+    setVolume(newVol);
+    frameRef.current?.setVolume(Number(newVol)); // iframe の中のゲームに伝える
+  };
 
   const controls = (
     <div className="ms-controls">
@@ -137,7 +115,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
       <button
         className="ms-btn ms-btn-red"
         disabled={!started}
-        onClick={(e) => { stopScript(); e.currentTarget.blur(); }}
+        onClick={(e) => { frameRef.current?.stop(); e.currentTarget.blur(); }}
       >
         ■ 停止
       </button>
@@ -169,7 +147,19 @@ export default function Player({ project }: { project: ProjectInfo }) {
 
           <div className="ms-screen" ref={stageRef}>
             {isFullscreen && started && controls}
-            <canvas id="gameScreen" className="ms-canvas" width={400} height={300} />
+            <GameFrame
+              ref={frameRef}
+              className="ms-canvas"
+              style={
+                isFullscreen && fsBox
+                  ? { width: fsBox.w, height: fsBox.h }
+                  : // 枠(.ms-screen は container)の幅と高さの両方に収まるように縮める。縦長の作品でも比が崩れない
+                    { width: `min(${size.w}px, 100cqw, calc(100cqh * ${size.w} / ${size.h}))` }
+              }
+              onLog={appendLog}
+              onClearLog={clearLog}
+              onSize={(w, h) => setSize({ w, h })}
+            />
 
             {!started && (
               <div className="ms-start" style={thumbStyle}>
@@ -218,7 +208,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
         {/* ログ */}
         <section className="ms-panel ms-log-panel" aria-label="ログ">
           <h2>ログ</h2>
-          <pre id="logBox" className="ms-log" />
+          <pre ref={logRef} className="ms-log" />
         </section>
       </div>
     </main>

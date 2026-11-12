@@ -270,8 +270,7 @@
   outline-offset: 2px;
 }
 .ms-card-desc {
-  --lines: 2;
-  min-height: 3em; /* 説明が短くても、2 行ぶんの高さをそろえる */
+  --lines: 1;
   margin: 2px 0 0;
   color: var(--muted);
   line-height: 1.5;
@@ -363,6 +362,7 @@
 }
 /* ゲーム画面の枠: 最大 600 x 400(3:2)。狭い画面では、同じ比のまま小さくなる */
 .ms-screen {
+  container-type: size; /* 中の iframe が cqw / cqh で、枠に収まる大きさを決める(Player.tsx) */
   position: relative;
   width: 100%;
   max-width: 600px;

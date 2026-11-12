@@ -178,91 +178,44 @@ export const fetchProject = async (id: string) => {
 
 /* ---------- 実行 ---------- */
 
-export type Prepared = {
-  textureMap: Record<string, HTMLImageElement>;
-  soundMap: Record<string, string>;
-  soundUrls: string[]; // 使い終わったら URL.revokeObjectURL する
-};
-
-// 画像と音をぜんぶ読み込んでおく
-export const prepareAssets = async (assets: Asset[]): Promise<Prepared> => {
-  const textureMap: Prepared["textureMap"] = {};
-  const soundMap: Prepared["soundMap"] = {};
-  const soundUrls: string[] = [];
-  await Promise.all(
-    assets.map(async (a) => {
-      if (kindOf(a.name) === "texture") {
-        const img = new Image();
-        img.src = a.data;
-        try {
-          await img.decode();
-        } catch {
-          /* 読み込めない画像は描かれないだけ */
-        }
-        textureMap[a.name] = img;
-      } else {
-        try {
-          // 大きな data URL をそのまま使うより、Blob の URL のほうが軽い
-          const blob = await (await fetch(a.data)).blob();
-          const url = URL.createObjectURL(blob);
-          soundUrls.push(url);
-          soundMap[a.name] = url;
-        } catch {
-          /* 読み込めない音は鳴らないだけ */
-        }
-      }
-    })
-  );
-  return { textureMap, soundMap, soundUrls };
-};
-
-// ページの中に id="gameScreen"(canvas) と id="logBox" がある前提で動く
-export const buildScript = (code: string, volume: number) => `return (async () => {
-const scriptVolume = ${volume};
+/* 作品のコードは、本体ページでは動かさない。
+   ここで作るのは「iframe の中で動かす JS の文字列」だけ(動かすのは lib/sandbox.ts の iframe)。
+   iframe の中には id="gameScreen"(canvas) があり、ログや大きさの変更は
+   window.__ms を通して親に postMessage で伝える。 */
+export const buildScript = (code: string, volume: number) => {
+  const v = Number.isFinite(volume) ? Math.min(100, Math.max(0, volume)) : 100;
+  return `(async () => {
+const scriptVolume = ${v};
 const canvas = document.getElementById("gameScreen");
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false; // 拡大・縮小しても、ピクセルをぼかさない
-const log = document.getElementById("logBox");
-log.textContent = "";
-const addLog = (t) => { log.textContent += t; };
-const addLogLn = (t) => { log.textContent += t+"\\n";};
-const clearLog = () => { log.textContent = ""; };
+const addLog = (t) => { window.__ms.post({ type: "log", text: String(t) }); };
+const addLogLn = (t) => { window.__ms.post({ type: "log", text: String(t) + "\\n" }); };
+const clearLog = () => { window.__ms.post({ type: "clear" }); };
 const setScreenSize = (w, h) => {
   canvas.width = w;
   canvas.height = h;
   ctx.imageSmoothingEnabled = false; // canvas の大きさを変えると設定が戻るので、もう一度指定する
+  window.__ms.resize(); // iframe の拡大率と、親に伝える大きさを更新する
   draw();
 };
 const __getTexture = (name) => {
-  const img = __textures[name];
+  const img = window.__textures[name];
   if (!img) addLog("「" + name + "」が見つからないよ。左の一覧と同じ名前か、たしかめてね。\\n");
   return img;
 };
 const __getSound = (name) => {
-  const url = __soundUrls[name];
+  const url = window.__soundUrls[name];
   if (!url) addLog("「" + name + "」が見つからないよ。左の一覧と同じ名前か、たしかめてね。\\n");
   return url;
 };
 ${RUNTIME}
 
-// ★ ここで window にグローバル音量変更関数を登録する
-window.setGlobalVolume = setGlobalVolume;
-
-// RUNTIME が読み込まれたあとに初期音量を反映
-if (typeof setGlobalVolume === "function") {
-  setGlobalVolume(${volume} / 100);
-}
+window.setGlobalVolume = setGlobalVolume; // 親からの音量変更(postMessage)で使う
+setGlobalVolume(scriptVolume / 100);
 
 ${compile(splitCode(code), [])}
-})();`;
-
-export const runScript = (js: string, p: Prepared) =>
-  new Function("__textures", "__soundUrls", js)(p.textureMap, p.soundMap) as Promise<void>;
-
-// 止めると、鳴っている音も止まる(RUNTIME の cleanup が止める)
-export const stopScript = () => {
-  const w = window as unknown as { __runId?: number; __cleanups?: (() => void)[] };
-  w.__runId = (w.__runId ?? 0) + 1;
-  (w.__cleanups ?? []).forEach((f) => f());
-  w.__cleanups = [];
+})().catch((e) => {
+  if (e?.message !== "stopped") window.__ms.post({ type: "log", text: "エラー: " + (e?.message ?? e) + "\\n" });
+});`;
 };
