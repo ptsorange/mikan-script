@@ -429,6 +429,12 @@ button.kc-add {
   background: var(--ink);
   font: 13px var(--mono);
 }
+.kc-tool {
+  align-self: center;
+  margin: 0 10px 0 auto;
+  padding: 3px 10px;
+  font-size: 12px;
+}
 .kc-dot {
   width: 9px;
   height: 9px;
@@ -478,6 +484,42 @@ button.kc-add {
   caret-color: #fff;
 }
 .kc-input::selection { background: rgba(76, 151, 255, 0.4); }
+
+/* 入力候補 */
+.kc-suggest {
+  position: absolute;
+  z-index: 5;
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 240px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font: 13px/18px var(--mono);
+}
+.kc-suggest li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.kc-suggest li.is-on { background: rgba(76, 151, 255, 0.3); }
+.kc-sg-kind { flex: none; width: 8px; height: 8px; border-radius: 2px; }
+.k-kw { background: var(--orange); }
+.k-fn { background: var(--cyan); }
+.k-var { background: #ee93ee; }
+.k-member { background: #b896ff; }
+.k-file { background: #86d98b; }
+.kc-sg-detail { margin-left: auto; padding-left: 12px; color: #8a91b4; font-size: 12px; }
 
 /* 色分け: ブロックの種類ごとに Scratch の色 */
 .tk-cm { color: #6f7699; font-style: italic; }

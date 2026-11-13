@@ -12,6 +12,18 @@ import {
 import Link from "next/link";
 import { commands } from "@/lib/lang";
 import {
+  typeChar,
+  backspace,
+  enter,
+  tab,
+  toggleComment,
+  formatCode,
+  getCompletions,
+  applyCandidate,
+  type Edit,
+  type Candidate,
+} from "@/lib/editing";
+import {
   MIME,
   KINDS,
   KIND_LIST,
@@ -241,6 +253,16 @@ export default function Editor() {
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState("");
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
+  // 入力候補(x, y は入力欄の中での位置)
+  type Suggest = { from: number; items: Candidate[]; index: number; typed: string; x: number; y: number; up: boolean };
+  const [suggest, setSuggestState] = useState<Suggest | null>(null);
+  const suggestRef = useRef<Suggest | null>(null);
+  const skipRefresh = useRef(false);
+  const measureCtx = useRef<CanvasRenderingContext2D | null>(null);
+  const setSuggest = (v: Suggest | null) => {
+    suggestRef.current = v;
+    setSuggestState(v);
+  };
   const [volume, setVolume] = useState("100");
 
   const toggleFullscreen = async () => {
@@ -416,13 +438,156 @@ export default function Editor() {
     });
   };
 
+  // 編集を入力欄に反映する。execCommand を使うので、Ctrl + Z で元にもどせる
+  const applyEdit = (ed: Edit) => {
+    const ta = editorRef.current;
+    if (!ta) return;
+    setSuggest(null);
+    ta.focus();
+    const before = ta.value;
+    const expected = before.slice(0, ed.from) + ed.text + before.slice(ed.to);
+    if (expected !== before) {
+      skipRefresh.current = true;
+      ta.setSelectionRange(ed.from, ed.to);
+      let ok = false;
+      try {
+        ok = ed.text ? document.execCommand("insertText", false, ed.text) : document.execCommand("delete");
+      } catch {
+        ok = false;
+      }
+      skipRefresh.current = false;
+      if (!ok || ta.value !== expected) {
+        // execCommand が使えないブラウザ用(この場合は Ctrl + Z の履歴は残らない)
+        ta.value = expected;
+        onChange(expected);
+      }
+    }
+    ta.setSelectionRange(ed.select[0], ed.select[1]);
+    updateCursor();
+  };
+
+  // 入力候補をつくりなおす
+  const refreshSuggest = (force = false) => {
+    const ta = editorRef.current;
+    if (!ta || ta.selectionStart !== ta.selectionEnd) return setSuggest(null);
+    const caret = ta.selectionStart;
+    const res = getCompletions(
+      ta.value,
+      caret,
+      assets.map((a) => a.name),
+      force
+    );
+    if (!res) return setSuggest(null);
+
+    // 候補を出す位置(単語のはじまりの、すぐ下)
+    const cs = getComputedStyle(ta);
+    const lines = ta.value.slice(0, res.from).split("\n");
+    const ctx = (measureCtx.current ??= document.createElement("canvas").getContext("2d"));
+    if (ctx) ctx.font = `${cs.fontSize} ${cs.fontFamily}`;
+    const width = ctx ? ctx.measureText(lines[lines.length - 1].replace(/\t/g, "  ")).width : 0;
+    const lh = parseFloat(cs.lineHeight) || 24;
+    const boxH = Math.min(240, res.items.length * 26 + 8);
+    let y = parseFloat(cs.paddingTop) + lines.length * lh - ta.scrollTop;
+    const up = y + boxH > ta.clientHeight && y - lh - boxH > 0;
+    if (up) y -= lh + boxH;
+    const x = Math.max(0, Math.min(parseFloat(cs.paddingLeft) + width - ta.scrollLeft, ta.clientWidth - 300));
+    const prev = suggestRef.current;
+    const keep = prev && prev.items[prev.index] ? res.items.findIndex((c) => c.label === prev.items[prev.index].label) : -1;
+    setSuggest({ ...res, index: keep > 0 ? keep : 0, x, y, up });
+  };
+
+  const acceptSuggest = (c: Candidate) => {
+    const ta = editorRef.current;
+    const sg = suggestRef.current;
+    if (!ta || !sg) return;
+    applyEdit(applyCandidate(ta.value, sg.from, ta.selectionStart, c));
+  };
+
+  const runFormat = () => {
+    const ta = editorRef.current;
+    if (!ta) return;
+    const r = formatCode(ta.value, ta.selectionStart);
+    if (r.text === ta.value) return;
+    applyEdit({ from: 0, to: ta.value.length, text: r.text, select: [r.caret, r.caret] });
+  };
+
+  const onEditorInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    onChange(e.target.value);
+    if (skipRefresh.current) return;
+    const ne = e.nativeEvent as InputEvent;
+    if (ne.isComposing) return; // 日本語入力の変換中は、かくていしてから
+    const t = ne.inputType ?? "";
+    if (t === "insertText" || t === "insertFromComposition") refreshSuggest();
+    else if (t.startsWith("delete") && suggestRef.current) refreshSuggest();
+    else setSuggest(null);
+  };
+
   const onEditorKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      replaceSelection("  ");
-    } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return; // 日本語入力の変換中は何もしない
+    const ta = e.currentTarget;
+    const { value: v, selectionStart: s, selectionEnd: en } = ta;
+    const mod = e.ctrlKey || e.metaKey;
+    const sg = suggestRef.current;
+
+    // 入力候補が出ているとき
+    if (sg) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const n = sg.items.length;
+        setSuggest({ ...sg, index: (sg.index + (e.key === "ArrowDown" ? 1 : n - 1)) % n });
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSuggest(null);
+        return;
+      }
+      const cur = sg.items[sg.index];
+      if (e.key === "Tab" && !e.shiftKey) {
+        e.preventDefault();
+        acceptSuggest(cur);
+        return;
+      }
+      if (e.key === "Enter" && !mod && !e.shiftKey && cur.label !== sg.typed) {
+        e.preventDefault();
+        acceptSuggest(cur);
+        return;
+      }
+      if (["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", "Enter"].includes(e.key)) setSuggest(null);
+    }
+
+    if (mod && e.key === "Enter") {
       e.preventDefault();
       runCode();
+    } else if (e.altKey && e.shiftKey && e.code === "KeyF") {
+      e.preventDefault();
+      runFormat();
+    } else if (mod && e.code === "Space") {
+      e.preventDefault();
+      refreshSuggest(true);
+    } else if (mod && e.key === "/") {
+      e.preventDefault();
+      applyEdit(toggleComment(v, s, en));
+    } else if (e.key === "Tab" && !mod && !e.altKey) {
+      e.preventDefault();
+      const ed = tab(v, s, en, e.shiftKey);
+      if (ed) applyEdit(ed);
+    } else if (e.key === "Enter" && !mod && !e.altKey) {
+      e.preventDefault();
+      applyEdit(enter(v, s, en));
+    } else if (e.key === "Backspace" && !mod && !e.altKey) {
+      const ed = backspace(v, s, en);
+      if (ed) {
+        e.preventDefault();
+        applyEdit(ed);
+      }
+    } else if (e.key.length === 1 && !mod && !e.altKey) {
+      const ed = typeChar(v, s, en, e.key);
+      if (ed) {
+        e.preventDefault();
+        applyEdit(ed);
+        if (e.key === '"' || e.key === "'") refreshSuggest(); // makeSprite(" のあと: 画像の名前を出す
+      }
     }
   };
 
@@ -969,6 +1134,14 @@ export default function Editor() {
               <span className="kc-dot" />
               main.code
             </div>
+            <button
+              className="kc-btn kc-tool"
+              title="コードを整える(Shift + Alt + F)"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={runFormat}
+            >
+              ✨ 整形
+            </button>
           </div>
           <div className="kc-code">
             <div className="kc-gutter" ref={gutterRef} aria-hidden="true">
@@ -989,10 +1162,40 @@ export default function Editor() {
                 autoComplete="off"
                 autoCorrect="off"
                 aria-label="プログラムを書く場所"
-                onChange={(e) => onChange(e.target.value)}
+                onChange={onEditorInput}
+                onCompositionEnd={() => requestAnimationFrame(() => refreshSuggest())}
+                onKeyDown={onEditorKeyDown}
+                onBlur={() => setSuggest(null)}
+                onMouseDown={() => setSuggest(null)}
                 onScroll={syncScroll}
                 onSelect={updateCursor}
               />
+              {suggest && (
+                <ul
+                  className="kc-suggest"
+                  role="listbox"
+                  aria-label="入力の候補"
+                  style={{ left: suggest.x, top: suggest.y }}
+                  ref={(el) => el?.querySelector(".is-on")?.scrollIntoView({ block: "nearest" })}
+                >
+                  {suggest.items.map((c, i) => (
+                    <li
+                      key={c.label}
+                      role="option"
+                      aria-selected={i === suggest.index}
+                      className={i === suggest.index ? "is-on" : undefined}
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // 入力欄からフォーカスを外さない
+                        acceptSuggest(c);
+                      }}
+                    >
+                      <span className={`kc-sg-kind k-${c.kind}`} aria-hidden="true" />
+                      <span className="kc-sg-label">{c.label}</span>
+                      <span className="kc-sg-detail">{c.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </section>

@@ -114,8 +114,8 @@ __on("mousemove", (e) => {
   __mouse.y = (e.clientY - r.top) * (canvas.height / r.height);
 });
 // キャンバスの上で押したときだけ「押している」扱いにする
-__on("mousedown", (e) => { if (e.target === canvas) __mouse.buttons.add(e.button); });
-__on("mouseup", (e) => __mouse.buttons.delete(e.button));
+__on("pointerup", (e) => { if (e.target === canvas) __mouse.buttons.add(e.button); });
+__on("pointerdown", (e) => __mouse.buttons.delete(e.button));
 // 右クリックでメニューが出ないようにする(キャンバス上だけ)
 __on("contextmenu", (e) => { if (e.target === canvas) e.preventDefault(); });
 const __onBlurMouse = () => __mouse.buttons.clear();
@@ -239,21 +239,25 @@ const makeSprite = (src, x = 0, y = 0, w, h) => {
     flip: false,
     size: 1,
     middle: false,
+    dontFlip:false,
     draw() {
       if (!this.img) return;
-      if(this.r>=360) this.r=0;
-      if(this.r<=-1) this.r=359;
       ctx.save();
       const sw = this.w * this.size;
       const sh = this.h * this.size;
       const cx = this.middle ? this.x : this.x + sw / 2;
       const cy = this.middle ? this.y : this.y + sh / 2;
       ctx.translate(cx, cy);
-      ctx.rotate(toRadians(this.r));
+      if(!this.dontFlip) ctx.rotate(toRadians(this.r));
       if(this.flip) ctx.scale(-1, 1);
       ctx.drawImage(this.img, -(this.w * this.size) / 2, -(this.h * this.size) / 2, this.w * this.size, this.h * this.size);
       ctx.restore();
     },
+    changeTexture(src){
+      this.img = __getTexture(src ?? "");
+      this.w=w ?? (img?.naturalWidth ?? 50);
+      this.h=h ?? (img?.naturalHeight ?? 50);
+    }
   });
 };
 
