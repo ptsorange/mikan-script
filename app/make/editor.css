@@ -677,3 +677,32 @@ button.kc-add {
   outline: 3px solid #fff;
   outline-offset: 2px;
 }
+
+/* ---------- ブロック(Blockly)をエディタの見た目に合わせる ----------
+   色や形は lib/blockTheme.ts。ここは、テーマでは変えられない文字・入力欄の色。
+   Blockly 自身の CSS より後に読まれることがあるので、クラスを重ねて強くしてある */
+.kc-app .injectionDiv {
+  background: var(--ink);
+  font-family: var(--ui);
+}
+/* フライアウトの見出し(イベント・せいぎょ…) */
+.kc-app .injectionDiv .blocklyFlyoutLabelText {
+  fill: var(--muted);
+  font-weight: 700;
+}
+/* 数・文字の入力欄: 白い箱をやめて、暗い箱に明るい文字にする */
+.kc-app .injectionDiv .blocklyEditableField > rect,
+.kc-app .injectionDiv .blocklyNonEditableField > rect {
+  fill: var(--ink);
+  fill-opacity: 1;
+}
+.kc-app .injectionDiv .blocklyEditableField > text,
+.kc-app .injectionDiv .blocklyNonEditableField > text {
+  fill: var(--text);
+}
+/* 入力中の欄 */
+.kc-app .injectionDiv .blocklyHtmlInput {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--ui);
+}

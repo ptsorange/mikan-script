@@ -1,7 +1,6 @@
 "use client";
 
-import * as Blockly from "blockly";
-import "blockly/msg/ja";
+import type { Block } from "blockly";
 import {
   useEffect,
   useMemo,
@@ -13,6 +12,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { commands } from "@/lib/lang";
+import { blockToCode } from "@/lib/blocks";
 import {
   typeChar,
   backspace,
@@ -28,7 +28,6 @@ import {
 import {
   MIME,
   KINDS,
-  KIND_LIST,
   kindOf,
   extOf,
   toPath,
@@ -43,80 +42,15 @@ import {
 } from "@/lib/mks";
 import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
 import "./editor.css";
+import { PANELS, ICONS, type Panel } from "./_sidebar/panels";
+import ExplorerPanel from "./_sidebar/ExplorerPanel";
+import BlockPanel from "./_sidebar/BlockPanel";
+import InfoPanel from "./_sidebar/InfoPanel";
+import AssetPanel from "./_sidebar/AssetPanel";
 
 const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないように、古い分から捨てる
 
 /* ---------- ファイル(texture/ と sound/) ---------- */
-
-// 左端の縦バー(VS Code のアクティビティバー)で切りかえるパネル
-type Panel = "explorer" | "block" | "info" | "texture" | "sound";
-
-const PANELS: { id: Panel; label: string }[] = [
-  { id: "explorer", label: "エクスプローラー(書き出しの中身)" },
-  { id: "block", label: "ブロックでコードを作る" },
-  { id: "info", label: "作品の情報(タイトル・説明・サムネ)" },
-  { id: "texture", label: "テクスチャ" },
-  { id: "sound", label: "サウンド" },
-];
-
-const svgProps = {
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.6,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-  "aria-hidden": true,
-} as const;
-
-const ICONS: Record<Panel, ReactNode> = {
-  explorer: (
-    <svg {...svgProps}>
-      <path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v12A1.5 1.5 0 0 0 7.5 18h9a1.5 1.5 0 0 0 1.5-1.5V7l-4-4z" />
-      <path d="M14 3v4.5a.5.5 0 0 0 .5.5H18" />
-      <path d="M9 21h8.5a2.5 2.5 0 0 0 2.5-2.5V10" />
-    </svg>
-  ),
-  block: (
-    <svg {...svgProps}>
-      <path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v12A1.5 1.5 0 0 0 7.5 18h9a1.5 1.5 0 0 0 1.5-1.5V7l-4-4z" />
-      <path d="M14 3v4.5a.5.5 0 0 0 .5.5H18" />
-      <path d="M9 21h8.5a2.5 2.5 0 0 0 2.5-2.5V10" />
-    </svg>
-  ),
-  info: (
-    <svg {...svgProps}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 11v5" />
-      <path d="M12 8h.01" />
-    </svg>
-  ),
-  texture: (
-    <svg {...svgProps}>
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-      <circle cx="9" cy="10" r="1.5" />
-      <path d="M4 17l5-4.5 3.5 3L15.5 13l4.5 4" />
-    </svg>
-  ),
-  sound: (
-    <svg {...svgProps}>
-      <path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4z" />
-      <path d="M15.5 9a4 4 0 0 1 0 6" />
-      <path d="M18 6.5a8 8 0 0 1 0 11" />
-    </svg>
-  ),
-};
-
-// data URL の中身(base64)が、ファイルとして何バイトか
-const assetBytes = (a: Asset) =>
-  Math.round(((a.data.length - a.data.indexOf(",") - 1) * 3) / 4);
-
-const fmtSize = (n: number) =>
-  n < 1024
-    ? `${n} B`
-    : n < 1024 * 1024
-      ? `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`
-      : `${(n / 1024 / 1024).toFixed(1)} MB`;
 
 const CODE_KEY = "code";
 const META_KEY = "meta";
@@ -245,7 +179,6 @@ export default function Editor() {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const hlRef = useRef<HTMLPreElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
-  const skipBlur = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLAudioElement | null>(null);
   const frameRef = useRef<GameFrameHandle>(null); // 作品を動かす iframe(隔離された画面)
@@ -274,32 +207,6 @@ export default function Editor() {
     setSuggestState(v);
   };
   const [volume, setVolume] = useState("100");
-  const blocklyDiv = useRef<HTMLDivElement>(null);
-  const blocklyWsRef = useRef<Blockly.WorkspaceSvg | null>(null);
-
-  // 既存の Blockly.inject をしている useEffect を以下に置き換える
-  useEffect(() => {
-    if (panel === "block") {
-      // 少し遅延させることで、DOMの描画（表示切り替え）が完了した後に確実にサイズを取得できるようにする
-      const timer = setTimeout(() => {
-        if (blocklyDiv.current && !blocklyWsRef.current) {
-          blocklyWsRef.current = Blockly.inject(blocklyDiv.current, {
-            toolbox: `
-            <xml>
-              <block type="controls_if"></block>
-              <block type="logic_compare"></block>
-              <block type="math_number"></block>
-            </xml>
-          `,
-          });
-        } else if (blocklyWsRef.current) {
-          // すでに存在する場合はサイズを再調整
-          Blockly.svgResize(blocklyWsRef.current);
-        }
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [panel]);
 
   const toggleFullscreen = async () => {
     const el = stageRef.current;
@@ -500,6 +407,29 @@ export default function Editor() {
     }
     ta.setSelectionRange(ed.select[0], ed.select[1]);
     updateCursor();
+  };
+
+  // サイドバーで押したブロックを、コードにして入力欄のカーソルの位置に入れる
+  const insertBlock = (block: Block) => {
+    const ta = editorRef.current;
+    if (!ta) return;
+    const v = ta.value;
+    const pos = ta.selectionEnd;
+    const ls = v.lastIndexOf("\n", pos - 1) + 1;
+    const le = v.indexOf("\n", pos) === -1 ? v.length : v.indexOf("\n", pos);
+    const line = v.slice(ls, le);
+    const blank = line.trim() === "";
+    // いまの行と同じインデント({ で終わる行のあとなら 1 段ふかく)
+    const base = /^[ \t]*/.exec(line)![0] + (!blank && line.trimEnd().endsWith("{") ? "  " : "");
+    const code = blockToCode(block)
+      .split("\n")
+      .map((l, i) => (i === 0 ? l : base + l))
+      .join("\n");
+    // 空の行ならそこに、文字がある行なら次の行に入れる
+    const ed: Edit = blank
+      ? { from: ls, to: le, text: base + code, select: [ls + base.length + code.length, ls + base.length + code.length] }
+      : { from: le, to: le, text: "\n" + base + code, select: [le + 1 + base.length + code.length, le + 1 + base.length + code.length] };
+    applyEdit(ed);
   };
 
   // 入力候補をつくりなおす
@@ -793,335 +723,11 @@ export default function Editor() {
 
   /* --- 見た目 --- */
 
-  // フォルダの行(▾ / ▸ で開け閉め)
-  const renderFolderRow = (key: string, label: string, count: number) => {
-    const open = !closed[key];
-    return (
-      <div
-        className="kc-folder"
-        role="button"
-        tabIndex={0}
-        aria-expanded={open}
-        onClick={() => toggleFolder(key)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            toggleFolder(key);
-          }
-        }}
-      >
-        <span className="kc-chev" aria-hidden="true">
-          {open ? "▾" : "▸"}
-        </span>
-        {label}
-        <span className="kc-folder-count">{count}</span>
-      </div>
-    );
-  };
-
-  const renderBlock = () => {
-    return (
-      <div
-        ref={blocklyDiv}
-        style={{ height: "100%", width: "100%", minHeight: "400px" }}
-      />
-    );
-  };
-
-  const renderFile = (a: Asset) => {
-    const kind = kindOf(a.name) as Kind;
-    const label = a.name.slice(KINDS[kind].prefix.length);
-    const playing = previewName === a.name;
-
-    return (
-      <li key={a.name} className="kc-file">
-        {editing === a.name ? (
-          <input
-            className="kc-rename"
-            value={draft}
-            autoFocus
-            spellCheck={false}
-            aria-label="あたらしい名前"
-            onChange={(e) => setDraft(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onBlur={() => {
-              if (skipBlur.current) {
-                skipBlur.current = false;
-                return;
-              }
-              commitRename();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitRename();
-              if (e.key === "Escape") {
-                skipBlur.current = true;
-                setEditing(null);
-              }
-            }}
-          />
-        ) : (
-          <>
-            <button
-              className="kc-file-main"
-              title="クリックで、コードに名前を入れる"
-              onClick={() => replaceSelection(`"${a.name}"`)}
-            >
-              {kind === "texture" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="kc-thumb" src={a.data} alt="" />
-              ) : (
-                <span className="kc-snd-ico" aria-hidden="true">
-                  🔊
-                </span>
-              )}
-              <span>{label}</span>
-            </button>
-            {kind === "sound" && (
-              <button
-                className={`kc-icon-btn${playing ? " is-on" : ""}`}
-                aria-label={playing ? `${a.name} を止める` : `${a.name} を試しに聞く`}
-                title={playing ? "止める" : "試しに聞く"}
-                onClick={() => togglePreview(a)}
-              >
-                {playing ? "■" : "▶"}
-              </button>
-            )}
-            <button
-              className="kc-icon-btn"
-              aria-label={`${a.name} の名前を変える`}
-              onClick={() => startRename(a.name)}
-            >
-              ✎
-            </button>
-            <button
-              className="kc-icon-btn"
-              aria-label={`${a.name} を消す`}
-              onClick={() => removeAsset(a.name)}
-            >
-              ✕
-            </button>
-          </>
-        )}
-      </li>
-    );
-  };
-
-  // テクスチャ / サウンドのパネル
-  const renderAssetPanel = (kind: Kind) => {
-    const files = byKind[kind];
-    const isTexture = kind === "texture";
-    return (
-      <>
-        <h2 className="kc-side-title">{isTexture ? "テクスチャ" : "サウンド"}</h2>
-
-        {files.length === 0 ? (
-          <p className="kc-empty">
-            {isTexture
-              ? "まだ画像がないよ。下のボタンで追加しよう。"
-              : "まだ音がないよ。下のボタンで追加しよう。"}
-          </p>
-        ) : (
-          <ul className="kc-files kc-flat">{files.map(renderFile)}</ul>
-        )}
-
-        <label className={isTexture ? "kc-add" : "kc-add kc-add-sound"}>
-          <input
-            className="kc-sr"
-            type="file"
-            multiple
-            accept={isTexture ? "image/png" : "audio/*,.mp3,.wav,.ogg,.m4a"}
-            onChange={onAddFiles(kind)}
-          />
-          {isTexture ? "＋ 画像を追加" : "＋ 音を追加"}
-        </label>
-
-        {isTexture ? (
-          <p className="kc-tip">
-            名前をクリックすると、カーソルの場所に入るよ。
-            <code>sprite cat = makeSprite("texture/cat.png", 50, 50)</code>
-          </p>
-        ) : (
-          <p className="kc-tip">
-            名前をクリックすると、カーソルの場所に入るよ。鳴らし方は 2 つ。
-            <code>await playSound("sound/bgm.mp3")</code>
-            ↑ 音が終わるまで、次に進まない
-            <code>playSound("sound/hit.wav")</code>
-            ↑ 鳴らしたら、すぐ次に進む
-          </p>
-        )}
-      </>
-    );
-  };
-
   // 動いているゲームの音量を、すぐに変える(iframe の中に postMessage で伝える)
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVol = e.target.value;
     setVolume(newVol);
     frameRef.current?.setVolume(Number(newVol));
-  };
-
-  // 作品の情報: 一覧に出るタイトル・説明・サムネ(書き出すと config.json と thumbnail.png になる)
-  const renderInfo = () => (
-    <>
-      <h2 className="kc-side-title">作品の情報</h2>
-
-      <label className="kc-field">
-        <span>タイトル</span>
-        <input
-          value={meta.title}
-          maxLength={60}
-          placeholder="例: みかん回避ゲーム"
-          onChange={(e) => onMetaChange("title", e.target.value)}
-        />
-      </label>
-      <label className="kc-field">
-        <span>作者</span>
-        <input
-          value={meta.author}
-          maxLength={40}
-          placeholder="名前"
-          onChange={(e) => onMetaChange("author", e.target.value)}
-        />
-      </label>
-      <label className="kc-field">
-        <span>説明</span>
-        <textarea
-          value={meta.description}
-          maxLength={200}
-          rows={4}
-          placeholder="ゲームの内容や遊び方"
-          onChange={(e) => onMetaChange("description", e.target.value)}
-        />
-        <span className="kc-count">{meta.description.length} / 200</span>
-      </label>
-
-      <div className="kc-field">
-        <span>サムネイル</span>
-        <div className="kc-thumb-box">
-          {thumbnail ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={thumbnail} alt="サムネイル" />
-          ) : (
-            <p className="kc-empty">未設定</p>
-          )}
-        </div>
-      </div>
-      <button className="kc-add" onClick={captureThumbnail}>
-        📷 実行画面をサムネイルに設定
-      </button>
-      <label className="kc-add kc-add-sound">
-        <input className="kc-sr" type="file" accept="image/*" onChange={onPickThumbnail} />
-        ＋ 画像を選択
-      </label>
-      {thumbnail && (
-        <button className="kc-add kc-add-sound" onClick={() => saveThumbnail(null)}>
-          ✕ サムネイルを削除
-        </button>
-      )}
-
-      <p className="kc-tip">
-        「書き出し」を押すと、<b>config.json</b> と <b>thumbnail.png</b> が project.mks の最上位に保存されます。
-        ホームの作品一覧には、この内容が表示されます。先に「▶ 実行」してから設定すると、ゲーム画面をサムネイルにできます。
-      </p>
-    </>
-  );
-
-  // エクスプローラー: 「書き出し」で作られる project.mks (zip) の中身
-  const renderExplorer = () => {
-    const total = codeBytes + assets.reduce((sum, a) => sum + assetBytes(a), 0);
-    const hasConfig = !!(meta.title || meta.author || meta.description);
-    const rootFiles = (hasConfig ? 1 : 0) + (thumbnail ? 1 : 0);
-    const fileCount = 1 + assets.length + rootFiles;
-    return (
-      <>
-        <h2 className="kc-side-title">エクスプローラー</h2>
-
-        {renderFolderRow("root", "project.mks", fileCount)}
-        {!closed.root && (
-          <ul className="kc-files">
-            {hasConfig && (
-              <li className="kc-file">
-                <button className="kc-file-main" title="クリックで作品の情報を開く" onClick={() => showPanel("info")}>
-                  <span></span>
-                  <span>config.json</span>
-                </button>
-              </li>
-            )}
-            {thumbnail && (
-              <li className="kc-file">
-                <button className="kc-file-main" title="クリックで作品の情報を開く" onClick={() => showPanel("info")}>
-                  <span></span>
-                  <span>thumbnail.png</span>
-                </button>
-              </li>
-            )}
-            <li>
-              {renderFolderRow("code", "code", 1)}
-              {!closed.code && (
-                <ul className="kc-files">
-                  <li className="kc-file">
-                    <button
-                      className="kc-file-main"
-                      title="クリックで、エディタにもどる"
-                      onClick={() => editorRef.current?.focus()}
-                    >
-                      {/* <span className="kc-snd-ico kc-ico-code" aria-hidden="true">
-                        {"{ }"}
-                      </span> */}
-                      <span></span>
-                      <span>main.mjs</span>
-                      <span className="kc-size">{fmtSize(codeBytes)}</span>
-                    </button>
-                  </li>
-                </ul>
-              )}
-            </li>
-
-            {/* 中身があるフォルダだけ出す(zip にも、あるものだけ入るので) */}
-            {KIND_LIST.filter((k) => byKind[k].length > 0).map((kind) => (
-              <li key={kind}>
-                {renderFolderRow(kind, kind, byKind[kind].length)}
-                {!closed[kind] && (
-                  <ul className="kc-files">
-                    {byKind[kind].map((a) => (
-                      <li key={a.name} className="kc-file">
-                        <button
-                          className="kc-file-main"
-                          title={`クリックで、${kind === "texture" ? "テクスチャ" : "サウンド"}を開く`}
-                          onClick={() => showPanel(kind)}
-                        >
-                          {/* {kind === "texture" ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img className="kc-thumb" src={a.data} alt="" />
-                          ) : (
-                            <span className="kc-snd-ico" aria-hidden="true">
-                              🔊
-                            </span>
-                          )} */}
-                          <span></span>
-                          <span>{a.name.slice(KINDS[kind].prefix.length)}</span>
-                          <span className="kc-size">{fmtSize(assetBytes(a))}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <p className="kc-tip">
-          「書き出し」を押すと、この中身が <b>project.mks</b>(zip)になるよ。ぜんぶで約 {fmtSize(total)}。
-        </p>
-        <button className="kc-add" onClick={exportProject}>
-          💾 書き出し
-        </button>
-        <label className="kc-import">
-          📂 読み込み
-          <input className="kc-sr" type="file" accept=".mks" onChange={onImportProject} /></label>
-      </>
-    );
   };
 
   return (
@@ -1163,10 +769,49 @@ export default function Editor() {
           className={`kc-explorer${panel ? "" : " is-closed"}`}
           aria-label="サイドバー"
         >
-          {panel === "explorer" && renderExplorer()}
-          {panel === "block" && renderBlock()}
-          {panel === "info" && renderInfo()}
-          {(panel === "texture" || panel === "sound") && renderAssetPanel(panel)}
+          {panel === "explorer" && (
+            <ExplorerPanel
+              assets={assets}
+              byKind={byKind}
+              meta={meta}
+              thumbnail={thumbnail}
+              codeBytes={codeBytes}
+              closed={closed}
+              onToggleFolder={toggleFolder}
+              onShowPanel={showPanel}
+              onFocusEditor={() => editorRef.current?.focus()}
+              onExport={exportProject}
+              onImport={onImportProject}
+            />
+          )}
+          {panel === "block" && <BlockPanel onPickBlock={insertBlock} />}
+          {panel === "info" && (
+            <InfoPanel
+              meta={meta}
+              thumbnail={thumbnail}
+              onMetaChange={onMetaChange}
+              onCapture={captureThumbnail}
+              onPick={onPickThumbnail}
+              onClear={() => saveThumbnail(null)}
+            />
+          )}
+          {(panel === "texture" || panel === "sound") && (
+            <AssetPanel
+              kind={panel}
+              files={byKind[panel]}
+              editing={editing}
+              draft={draft}
+              previewName={previewName}
+              onDraftChange={setDraft}
+              onStartRename={startRename}
+              onCommitRename={commitRename}
+              onCancelRename={() => setEditing(null)}
+              onRemove={removeAsset}
+              onTogglePreview={togglePreview}
+              onInsertName={(name) => replaceSelection(`"${name}"`)}
+              onAddFiles={onAddFiles(panel)}
+            />
+          )}
           {panel && notice && (
             <p className="kc-notice" role="alert">
               {notice}
