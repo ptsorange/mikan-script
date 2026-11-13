@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  reactStrictMode: false,
   experimental: {
     agentFeedback: true,
   },
@@ -16,5 +17,7 @@ const nextConfig: NextConfig = {
     },
   },
 };
+
+module.exports = nextConfig;
 
 export default nextConfig;

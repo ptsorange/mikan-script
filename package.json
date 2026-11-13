@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "blockly": "^13.4.0",
     "jszip": "^3.10.2",
     "next": "16.4.4",
     "react": "19.3.0",
