@@ -49,6 +49,15 @@ const __tick = async () => {
     __last = performance.now();
   }
 };
+
+const __drawPerFrame = async () => {
+  while (true) {
+    __check();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    __check();
+    draw();
+  }
+};
 const __on = (type, fn) => {
   document.addEventListener(type, fn);
   window.__cleanups.push(() => document.removeEventListener(type, fn));
@@ -482,11 +491,11 @@ export const compile = (lines: Token[][], variables: string[]): string => {
           ? ` {\n${tick}${compileLines(block, variables)}}\n`
           : ";\n";
         // ${(head[0] == "while" && block?.findIndex((b:any)=>b.startsWith("sleep"))) ? "await sleep(0);\n" : ""}
-        if (!block && sprites.includes(head[0])) js += "draw();\n";
+        if (!block && sprites.includes(head[0])) js;
       } else {
         js += head.join(" ");
         js += block ? ` {\n${compileLines(block, variables)}}\n` : ";\n";
-        if (!block && sprites.includes(head[0])) js += "draw();\n";
+        if (!block && sprites.includes(head[0])) js;
       }
     }
     const runJs = `
@@ -510,7 +519,11 @@ ${sprites.map(s => `  ${s}.draw();`).join("\n")}
 })));
 `;
 
-  return SPRITE_LIB + spriteJs + drawJs + "draw();\n" + body + runJs;
+  const drawLoop = sprites.length > 0
+    ? "__drawPerFrame().catch(e => { if (e?.message !== 'stopped') console.error(e); });\n"
+    : "";
+
+  return SPRITE_LIB + spriteJs + drawJs + drawLoop + body + runJs;
 };
 
 const ALIASES: Record<string, string> = {
