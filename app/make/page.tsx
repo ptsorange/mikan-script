@@ -1,5 +1,7 @@
 "use client";
 
+import * as Blockly from "blockly";
+import "blockly/msg/ja";
 import {
   useEffect,
   useMemo,
@@ -47,10 +49,11 @@ const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないよう
 /* ---------- ファイル(texture/ と sound/) ---------- */
 
 // 左端の縦バー(VS Code のアクティビティバー)で切りかえるパネル
-type Panel = "explorer" | "info" | "texture" | "sound";
+type Panel = "explorer" | "block" | "info" | "texture" | "sound";
 
 const PANELS: { id: Panel; label: string }[] = [
   { id: "explorer", label: "エクスプローラー(書き出しの中身)" },
+  { id: "block", label: "ブロックでコードを作る" },
   { id: "info", label: "作品の情報(タイトル・説明・サムネ)" },
   { id: "texture", label: "テクスチャ" },
   { id: "sound", label: "サウンド" },
@@ -68,6 +71,13 @@ const svgProps = {
 
 const ICONS: Record<Panel, ReactNode> = {
   explorer: (
+    <svg {...svgProps}>
+      <path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v12A1.5 1.5 0 0 0 7.5 18h9a1.5 1.5 0 0 0 1.5-1.5V7l-4-4z" />
+      <path d="M14 3v4.5a.5.5 0 0 0 .5.5H18" />
+      <path d="M9 21h8.5a2.5 2.5 0 0 0 2.5-2.5V10" />
+    </svg>
+  ),
+  block: (
     <svg {...svgProps}>
       <path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v12A1.5 1.5 0 0 0 7.5 18h9a1.5 1.5 0 0 0 1.5-1.5V7l-4-4z" />
       <path d="M14 3v4.5a.5.5 0 0 0 .5.5H18" />
@@ -264,6 +274,32 @@ export default function Editor() {
     setSuggestState(v);
   };
   const [volume, setVolume] = useState("100");
+  const blocklyDiv = useRef<HTMLDivElement>(null);
+  const blocklyWsRef = useRef<Blockly.WorkspaceSvg | null>(null);
+
+  // 既存の Blockly.inject をしている useEffect を以下に置き換える
+  useEffect(() => {
+    if (panel === "block") {
+      // 少し遅延させることで、DOMの描画（表示切り替え）が完了した後に確実にサイズを取得できるようにする
+      const timer = setTimeout(() => {
+        if (blocklyDiv.current && !blocklyWsRef.current) {
+          blocklyWsRef.current = Blockly.inject(blocklyDiv.current, {
+            toolbox: `
+            <xml>
+              <block type="controls_if"></block>
+              <block type="logic_compare"></block>
+              <block type="math_number"></block>
+            </xml>
+          `,
+          });
+        } else if (blocklyWsRef.current) {
+          // すでに存在する場合はサイズを再調整
+          Blockly.svgResize(blocklyWsRef.current);
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [panel]);
 
   const toggleFullscreen = async () => {
     const el = stageRef.current;
@@ -777,9 +813,18 @@ export default function Editor() {
         <span className="kc-chev" aria-hidden="true">
           {open ? "▾" : "▸"}
         </span>
-      {label}
+        {label}
         <span className="kc-folder-count">{count}</span>
       </div>
+    );
+  };
+
+  const renderBlock = () => {
+    return (
+      <div
+        ref={blocklyDiv}
+        style={{ height: "100%", width: "100%", minHeight: "400px" }}
+      />
     );
   };
 
@@ -1072,7 +1117,7 @@ export default function Editor() {
         <button className="kc-add" onClick={exportProject}>
           💾 書き出し
         </button>
-                <label className="kc-import">
+        <label className="kc-import">
           📂 読み込み
           <input className="kc-sr" type="file" accept=".mks" onChange={onImportProject} /></label>
       </>
@@ -1119,6 +1164,7 @@ export default function Editor() {
           aria-label="サイドバー"
         >
           {panel === "explorer" && renderExplorer()}
+          {panel === "block" && renderBlock()}
           {panel === "info" && renderInfo()}
           {(panel === "texture" || panel === "sound") && renderAssetPanel(panel)}
           {panel && notice && (
@@ -1214,7 +1260,7 @@ export default function Editor() {
             >
               ⛶ フルスクリーン
             </button>
-            <input type="range" className="w-[75]" value={volume} onChange={handleVolumeChange} min="0" max="100" step="1"/>
+            <input type="range" className="w-[75]" value={volume} onChange={handleVolumeChange} min="0" max="100" step="1" />
           </div>
 
           <div className="kc-screen" ref={stageRef}>
@@ -1233,7 +1279,7 @@ export default function Editor() {
                   >
                     🗗 もどす
                   </button>
-                  <input type="range" value={volume} onChange={handleVolumeChange} min="0" max="100" step="1"/>
+                  <input type="range" value={volume} onChange={handleVolumeChange} min="0" max="100" step="1" />
                 </div>
               </> : null
             }
