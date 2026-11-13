@@ -196,6 +196,37 @@ export default function Editor() {
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState("");
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
+
+  // ▼ サイドバー幅のリサイズ用ステートと処理
+  const [sidebarWidth, setSidebarWidth] = useState(230);
+  const isResizingRef = useRef(false);
+
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const bodyEl = document.querySelector(".kc-body");
+      if (!bodyEl) return;
+      const rect = bodyEl.getBoundingClientRect();
+      const newWidth = moveEvent.clientX - rect.left - 48; // 48pxは活動バーの幅
+      if (newWidth >= 150 && newWidth <= 600) {
+        setSidebarWidth(newWidth);
+      }
+    };
+
+    const onMouseUp = () => {
+      isResizingRef.current = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+  // ▲ ここまで
+
   // 入力候補(x, y は入力欄の中での位置)
   type Suggest = { from: number; items: Candidate[]; index: number; typed: string; x: number; y: number; up: boolean };
   const [suggest, setSuggestState] = useState<Suggest | null>(null);
@@ -745,7 +776,13 @@ export default function Editor() {
         </label>
       </header>
 
-      <div className={`kc-body${panel ? "" : " is-collapsed"}`}>
+      {/* ▼ gridTemplateColumns にステートの sidebarWidth を適用 */}
+      <div
+        className={`kc-body${panel ? "" : " is-collapsed"}`}
+        style={{
+          gridTemplateColumns: `48px ${panel ? sidebarWidth : 0}px minmax(0, 1fr) minmax(320px, 440px)`,
+        }}
+      >
         <nav className="kc-activity" aria-label="サイドバーの切りかえ">
           {PANELS.map(({ id, label }) => {
             const active = panel === id;
@@ -759,7 +796,6 @@ export default function Editor() {
                 onClick={() => clickActivity(id)}
               >
                 {ICONS[id]}
-                {/* {count > 0 && <span className="kc-badge">{count}</span>} */}
               </button>
             );
           })}
@@ -817,6 +853,9 @@ export default function Editor() {
               {notice}
             </p>
           )}
+
+          {/* ▼ マウスでドラッグするためのリサイザーを追加 */}
+          <div className="kc-resizer" onMouseDown={startResizing} />
         </aside>
 
         <section className="kc-editor" aria-label="プログラム">

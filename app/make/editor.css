@@ -220,6 +220,7 @@
   border-right: 0;
 }
 .kc-explorer {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -227,6 +228,20 @@
   overflow: auto;
   background: var(--panel);
   border-right: 1px solid var(--line);
+}
+.kc-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 5px;
+  height: 100%;
+  cursor: ew-resize; /* 左右矢印カーソル */
+  background: transparent;
+  z-index: 10;
+}
+
+.kc-resizer:hover {
+  background: rgba(255, 140, 0, 0.4); /* ホバー時に分かりやすく色を付ける */
 }
 .kc-side-title {
   margin: 0 4px 4px;

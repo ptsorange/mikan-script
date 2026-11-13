@@ -20,31 +20,63 @@ export default function BlockPanel({ onPickBlock }: Props) {
     pickRef.current = onPickBlock;
   });
 
-  useEffect(() => {
-    let ws: Blockly.WorkspaceSvg | null = null;
-    // 少し遅延させることで、DOMの描画（表示切り替え）が完了した後に確実にサイズを取得できるようにする
-    const timer = setTimeout(() => {
-      if (!divRef.current) return;
-      defineMikanBlocks();
-      // thrasos: 立体のかげがない、平らな見た目(エディタに合わせる)
-      ws = Blockly.inject(divRef.current, { toolbox: TOOLBOX, theme: mikanTheme, renderer: "thrasos" });
+useEffect(() => {
+  const el = divRef.current;
+  if (!el) return;
+  let ws: Blockly.WorkspaceSvg | null = null;
 
-      // サイドバー(フライアウト)のブロックを押したら、呼び出し元に渡す
-      const flyoutWs = ws.getFlyout()?.getWorkspace();
-      flyoutWs?.addChangeListener((ev: Blockly.Events.Abstract) => {
-        if (ev.type !== Blockly.Events.CLICK) return;
-        const click = ev as Blockly.Events.Click;
-        if (click.targetType !== "block" || !click.blockId) return;
-        const block = flyoutWs.getBlockById(click.blockId);
-        if (block) pickRef.current(block.getRootBlock());
-      });
-    }, 50);
-    // パネルを閉じると div ごと消えるので、ここで片づける(開きなおしたとき真っ白にならないように)
-    return () => {
-      clearTimeout(timer);
-      ws?.dispose();
-    };
-  }, []);
+  const init = () => {
+    if (ws || !el.clientWidth || !el.clientHeight) return; // サイズが出てから作る
+    defineMikanBlocks();
+    ws = Blockly.inject(el, {
+      toolbox: TOOLBOX,
+      theme: mikanTheme,
+      renderer: "thrasos",
+      // ワークスペース関連の機能は全部オフ
+      scrollbars: false,
+      trashcan: false,
+      zoom: { controls: false, wheel: false, pinch: false },
+      move: { scrollbars: false, drag: false, wheel: false },
+      sounds: false,
+    });
+
+    // ブロック一覧を出しっぱなしにして、最初のカテゴリを開いておく
+    const flyout = ws.getFlyout();
+    if (flyout) flyout.autoClose = false;
+    ws.getToolbox()?.selectItemByPosition(0);
+
+    // ブロックをドラッグして置かれても、すぐ消す(置き場はないので)
+    const w = ws;
+    w.addChangeListener((ev: Blockly.Events.Abstract) => {
+      if (ev.type === Blockly.Events.BLOCK_CREATE) {
+        const id = (ev as Blockly.Events.BlockCreate).blockId;
+        if (id) w.getBlockById(id)?.dispose(false);
+      }
+    });
+
+    // 一覧のブロックをクリックしたら呼び出し元へ
+    const flyoutWs = flyout?.getWorkspace();
+    flyoutWs?.addChangeListener((ev: Blockly.Events.Abstract) => {
+      if (ev.type !== Blockly.Events.CLICK) return;
+      const click = ev as Blockly.Events.Click;
+      if (click.targetType !== "block" || !click.blockId) return;
+      const block = flyoutWs.getBlockById(click.blockId);
+      if (block) pickRef.current(block.getRootBlock());
+    });
+  };
+
+  const ro = new ResizeObserver(() => {
+    if (!ws) init();
+    else Blockly.svgResize(ws);
+  });
+  ro.observe(el);
+
+  return () => {
+    ro.disconnect();
+    ws?.dispose();
+    ws = null;
+  };
+}, []);
 
   return <div ref={divRef} style={{ height: "100%", width: "100%", minHeight: "400px" }} />;
 }

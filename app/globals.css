@@ -35,3 +35,11 @@ body {
   color: var(--text);
   font-family: var(--ui);
 }
+
+.blocklySvg,
+.blocklyFlyout,
+.blocklyToolboxDiv svg {
+  max-width: none;
+  height: auto;
+}
+.blocklyToolboxDiv, .blocklyFlyout { box-sizing: content-box; }
