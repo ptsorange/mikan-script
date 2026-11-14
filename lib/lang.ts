@@ -219,6 +219,164 @@ const commonMethods = `
   }`;
 
 const SPRITE_LIB = `
+// ---------- 層(layer)と描画順 ----------
+// list の中身(スプライト or グループ)を 1 列にして、[layer, 宣言順] で並べる。
+// グループの layer は、中のスプライトの layer に足される。
+const __flatten = (list) => {
+  const items = [];
+  let i = 0;
+  for (const e of list) {
+    if (Array.isArray(e)) {
+      const gl = Number(e.layer) || 0;
+      for (const s of e) items.push({ s, l: gl + (Number(s.layer) || 0), i: i++ });
+    } else {
+      items.push({ s: e, l: Number(e.layer) || 0, i: i++ });
+    }
+  }
+  return items;
+};
+const __drawAll = (list) => {
+  __flatten(list).sort((a, b) => a.l - b.l || a.i - b.i).forEach((o) => o.s.draw());
+};
+// dir > 0: いちばん手前へ / dir < 0: いちばん奥へ
+const __moveLayer = (s, dir) => {
+  const items = __flatten(__drawOrder);
+  const me = items.find((o) => o.s === s);
+  const others = items.filter((o) => o.s !== s).map((o) => o.l);
+  if (!others.length) return;
+  const base = me ? me.l - (Number(s.layer) || 0) : 0; // グループ分のずれ
+  s.layer = (dir > 0 ? Math.max(...others) + 1 : Math.min(...others) - 1) - base;
+};
+
+// ---------- 効果(スクラッチと同じ 7 つ。0 のときは何もしない) ----------
+// color: 色相 / fisheye: 魚眼レンズ / whirl: 渦巻き / pixelate: ピクセル化
+// mosaic: モザイク(同じ絵を並べる) / brightness: 明るさ(-100〜100) / ghost: 幽霊(0〜100)
+const __EFFECT_NAMES = ["color", "fisheye", "whirl", "pixelate", "mosaic", "brightness", "ghost"];
+const __EFFECT_ALIAS = Object.assign(Object.create(null), {
+  "色": "color", "魚眼レンズ": "fisheye", "魚眼": "fisheye", "渦巻き": "whirl",
+  "ピクセル化": "pixelate", "モザイク": "mosaic", "明るさ": "brightness", "幽霊": "ghost",
+});
+const __newEffects = () => ({ color: 0, fisheye: 0, whirl: 0, pixelate: 0, mosaic: 0, brightness: 0, ghost: 0 });
+const __effectName = (n) => {
+  const k = __EFFECT_ALIAS[n] ?? n;
+  return __EFFECT_NAMES.includes(k) ? k : null;
+};
+const __hasPixelFx = (e) => !!(e.color || e.fisheye || e.whirl || e.pixelate || e.mosaic || e.brightness);
+
+const __fxCanvas = document.createElement("canvas");
+const __fxCtx = __fxCanvas.getContext("2d", { willReadFrequently: true });
+const __rgb = [0, 0, 0];
+// 色相をずらす(真っ黒や灰色でも変化が見えるよう、スクラッチと同じ下限を入れる)
+const __shiftHue = (r, g, b, dh) => {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0, s = mx === 0 ? 0 : d / mx, v = mx;
+  if (d > 0) {
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+    if (h < 0) h += 1;
+  }
+  if (v < 0.055) { h = 0; s = 1; v = 0.055; }
+  else if (s < 0.09) { h = 0; s = 0.09; }
+  h = (h + dh) % 1;
+  if (h < 0) h += 1;
+  const i = Math.floor(h * 6), f = h * 6 - i;
+  const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0: __rgb[0] = v; __rgb[1] = t; __rgb[2] = p; break;
+    case 1: __rgb[0] = q; __rgb[1] = v; __rgb[2] = p; break;
+    case 2: __rgb[0] = p; __rgb[1] = v; __rgb[2] = t; break;
+    case 3: __rgb[0] = p; __rgb[1] = q; __rgb[2] = v; break;
+    case 4: __rgb[0] = t; __rgb[1] = p; __rgb[2] = v; break;
+    default: __rgb[0] = v; __rgb[1] = p; __rgb[2] = q;
+  }
+  __rgb[0] *= 255; __rgb[1] *= 255; __rgb[2] *= 255;
+};
+
+// いったん小さな canvas にスプライトを描いて、1 ピクセルずつ加工してから本物の canvas へ貼る。
+// paint(c) は「中心が (0,0)、大きさ sw x sh」でスプライトを描く関数。
+const __drawFx = (e, sw, sh, paint) => {
+  const aw = Math.abs(sw), ah = Math.abs(sh);
+  const k = Math.min(1, Math.sqrt(262144 / (aw * ah))); // 大きすぎるときは粗くして軽くする
+  const W = Math.max(1, Math.round(aw * k)), H = Math.max(1, Math.round(ah * k));
+  __fxCanvas.width = W; __fxCanvas.height = H; // 大きさを変えると中身も設定も初期化される
+  __fxCtx.imageSmoothingEnabled = false;
+  __fxCtx.translate(W / 2, H / 2);
+  __fxCtx.scale(W / aw, H / ah);
+  paint(__fxCtx);
+
+  const mosaic = Math.max(1, Math.min(512, Math.round((Math.abs(Number(e.mosaic) || 0) + 10) / 10)));
+  const pix = Math.abs(Number(e.pixelate) || 0) / 10;          // ブロック 1 つの大きさ(スプライトの単位)
+  const whirl = -(Number(e.whirl) || 0) * Math.PI / 180;
+  const fish = Math.max(0, ((Number(e.fisheye) || 0) + 100) / 100);
+  const hue = (Number(e.color) || 0) / 200;                    // 200 でひとまわり
+  const bright = Math.min(100, Math.max(-100, Number(e.brightness) || 0)) / 100 * 255;
+  const nx = pix > 0 ? Math.max(1, aw / pix) : 0;
+  const ny = pix > 0 ? Math.max(1, ah / pix) : 0;
+  const geom = mosaic > 1 || pix > 0 || whirl !== 0 || fish !== 1;
+
+  const src = __fxCtx.getImageData(0, 0, W, H).data;
+  const out = new ImageData(W, H);
+  const od = out.data;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let u = (x + 0.5) / W, v = (y + 0.5) / H;
+      if (geom) {
+        if (mosaic > 1) { u = (u * mosaic) % 1; v = (v * mosaic) % 1; }
+        if (pix > 0) { u = (Math.floor(u * nx) + 0.5) / nx; v = (Math.floor(v * ny) + 0.5) / ny; }
+        if (whirl !== 0) {
+          const dx = u - 0.5, dy = v - 0.5;
+          const f = Math.max(1 - Math.hypot(dx, dy) / 0.5, 0);
+          const a = whirl * f * f, sn = Math.sin(a), cs = Math.cos(a);
+          u = cs * dx + sn * dy + 0.5;
+          v = -sn * dx + cs * dy + 0.5;
+        }
+        if (fish !== 1) {
+          const vx = (u - 0.5) / 0.5, vy = (v - 0.5) / 0.5;
+          const len = Math.hypot(vx, vy);
+          if (len > 0) {
+            const r = Math.pow(Math.min(len, 1), fish) * Math.max(1, len);
+            u = 0.5 + (r * vx / len) * 0.5;
+            v = 0.5 + (r * vy / len) * 0.5;
+          }
+        }
+        if (u < 0 || u >= 1 || v < 0 || v >= 1) continue; // 範囲の外は透明
+      }
+      const si = (Math.min(H - 1, Math.floor(v * H)) * W + Math.min(W - 1, Math.floor(u * W))) * 4;
+      const a = src[si + 3];
+      if (a === 0) continue;
+      let r = src[si], g = src[si + 1], b = src[si + 2];
+      if (hue !== 0) { __shiftHue(r, g, b, hue); r = __rgb[0]; g = __rgb[1]; b = __rgb[2]; }
+      const di = (y * W + x) * 4;
+      od[di] = r + bright; od[di + 1] = g + bright; od[di + 2] = b + bright; od[di + 3] = a; // 0〜255 に自動で丸められる
+    }
+  }
+  __fxCtx.putImageData(out, 0, 0); // putImageData は変形の影響を受けない
+  ctx.drawImage(__fxCanvas, -aw / 2, -ah / 2, aw, ah);
+};
+
+// 3 種類のスプライトが共通で使う描画。位置・回転・反転・効果をここで処理する。
+const __renderSprite = (s, sw, sh, rotate, paint) => {
+  const cx = s.middle ? s.x : s.x + sw / 2;
+  const cy = s.middle ? s.y : s.y + sh / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (rotate) ctx.rotate(toRadians(s.r));
+  if (s.flip) ctx.scale(-1, 1);
+  const e = s.effects;
+  if (e) {
+    const ghost = Math.min(100, Math.max(0, Number(e.ghost) || 0));
+    if (ghost > 0) ctx.globalAlpha *= 1 - ghost / 100;
+  }
+  if (e && __hasPixelFx(e) && Math.abs(sw) >= 1 && Math.abs(sh) >= 1 && isFinite(sw) && isFinite(sh)) {
+    __drawFx(e, sw, sh, paint);
+  } else {
+    paint(ctx);
+  }
+  ctx.restore();
+};
 const __spriteBase = {
   move(speed) {
     this.x += Math.cos(toRadians(this.r)) * speed;
@@ -236,6 +394,27 @@ const __spriteBase = {
   isClicking(button = "left") {
     return __mouse.buttons.has(__BTN[button] ?? 0) && this.isHovering();
   },
+  // ---------- 層(layer) ----------
+  // layer が小さいほど奥、大きいほど手前。同じ layer なら宣言順(あとのほうが手前)
+  setLayer(n) { this.layer = Number(n) || 0; },
+  toFront() { __moveLayer(this, 1); },
+  toBack() { __moveLayer(this, -1); },
+  // ---------- 効果(スクラッチの「〜の効果」) ----------
+  setEffect(name, value = 0) {
+    const k = __effectName(name);
+    if (!k) { addLog("「" + name + "」という効果はないよ。\\n"); return; }
+    this.effects[k] = Number(value) || 0;
+  },
+  changeEffect(name, delta = 0) {
+    const k = __effectName(name);
+    if (!k) { addLog("「" + name + "」という効果はないよ。\\n"); return; }
+    this.effects[k] = (Number(this.effects[k]) || 0) + (Number(delta) || 0);
+  },
+  getEffect(name) {
+    const k = __effectName(name);
+    return k ? this.effects[k] : 0;
+  },
+  clearEffects() { this.effects = __newEffects(); },
 };
  
 // middle=false: x/y are the top-left. middle=true: x/y are the center.
@@ -249,18 +428,14 @@ const makeSprite = (src, x = 0, y = 0, w, h) => {
     size: 1,
     middle: false,
     dontFlip:false,
+    layer: 0,
+    effects: __newEffects(),
     draw() {
       if (!this.img) return;
-      ctx.save();
+      const img = this.img;
       const sw = this.w * this.size;
       const sh = this.h * this.size;
-      const cx = this.middle ? this.x : this.x + sw / 2;
-      const cy = this.middle ? this.y : this.y + sh / 2;
-      ctx.translate(cx, cy);
-      if(!this.dontFlip) ctx.rotate(toRadians(this.r));
-      if(this.flip) ctx.scale(-1, 1);
-      ctx.drawImage(this.img, -(this.w * this.size) / 2, -(this.h * this.size) / 2, this.w * this.size, this.h * this.size);
-      ctx.restore();
+      __renderSprite(this, sw, sh, !this.dontFlip, (c) => c.drawImage(img, -sw / 2, -sh / 2, sw, sh));
     },
     changeTexture(src){
       this.img = __getTexture(src ?? "");
@@ -277,40 +452,38 @@ const makeShapeSprite = (shape = 4, x = 0, y = 0, w = 50, h = 50, color = "white
     flip: false,
     size: 1,
     middle: false,
+    layer: 0,
+    effects: __newEffects(),
     draw() {
-      ctx.save();
       const sw = this.w * this.size;
       const sh = this.h * this.size;
-      const cx = this.middle ? this.x : this.x + sw / 2;
-      const cy = this.middle ? this.y : this.y + sh / 2;
-      ctx.translate(cx, cy);
-      ctx.rotate(toRadians(this.r));
-      if (this.flip) ctx.scale(-1, 1);
-      ctx.fillStyle = this.color;
+      const color = this.color;
+      const shape = this.shape;
+      __renderSprite(this, sw, sh, true, (c) => {
+        c.fillStyle = color;
+        c.beginPath();
+        const rad = Math.min(sw, sh) / 2;
 
-      ctx.beginPath();
-      const rad = Math.min(sw, sh) / 2;
-
-      if (typeof this.shape === "number") {
-        for (let i = 0; i < this.shape; i++) {
-          const a = (i * 2 * Math.PI) / this.shape - Math.PI / 2;
-          const px = rad * Math.cos(a), py = rad * Math.sin(a);
-          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        if (typeof shape === "number") {
+          for (let i = 0; i < shape; i++) {
+            const a = (i * 2 * Math.PI) / shape - Math.PI / 2;
+            const px = rad * Math.cos(a), py = rad * Math.sin(a);
+            i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+          }
+        } else if (shape === "star") {
+          for (let i = 0; i < 10; i++) {
+            const a = (i * Math.PI) / 5 - Math.PI / 2;
+            const r = i % 2 === 0 ? rad : rad / 2;
+            const px = r * Math.cos(a), py = r * Math.sin(a);
+            i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+          }
+        } else {
+          c.rect(-sw / 2, -sh / 2, sw, sh);
         }
-      } else if (this.shape === "star") {
-        for (let i = 0; i < 10; i++) {
-          const a = (i * Math.PI) / 5 - Math.PI / 2;
-          const r = i % 2 === 0 ? rad : rad / 2;
-          const px = r * Math.cos(a), py = r * Math.sin(a);
-          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-        }
-      } else {
-        ctx.rect(-sw / 2, -sh / 2, sw, sh);
-      }
 
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
+        c.closePath();
+        c.fill();
+      });
     },
   });
 
@@ -321,6 +494,8 @@ const makeTextSprite = (text = "", x = 0, y = 0, fontSize = 24, color = "white")
     flip: false,
     size: 1,
     middle: false,
+    layer: 0,
+    effects: __newEffects(),
     __textSprite: true,
     get w() { 
       ctx.font = (this.fontSize * this.size) + "px sans-serif"; 
@@ -330,29 +505,30 @@ const makeTextSprite = (text = "", x = 0, y = 0, fontSize = 24, color = "white")
       return this.fontSize * this.size; 
     },
     draw() {
-      ctx.save();
-      const cx = this.middle ? this.x : this.x + this.w / 2;
-      const cy = this.middle ? this.y : this.y + this.h / 2;
-      ctx.translate(cx, cy);
-      ctx.rotate(toRadians(this.r));
-      if(this.flip) ctx.scale(-1, 1);
-      ctx.font = (this.fontSize * this.size) + "px sans-serif";
-      ctx.fillStyle = this.color;
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-      ctx.fillText(String(this.text), 0, 0);
-      ctx.restore();
+      const sw = this.w;
+      const sh = this.h;
+      const font = (this.fontSize * this.size) + "px sans-serif";
+      const color = this.color;
+      const str = String(this.text);
+      __renderSprite(this, sw, sh, true, (c) => {
+        c.font = font;
+        c.fillStyle = color;
+        c.textBaseline = "middle";
+        c.textAlign = "center";
+        c.fillText(str, 0, 0);
+      });
     },
   });
 // スプライトのグループ(sprite enemys[] で作られる)
 const __makeGroup = () => {
   const g = [];
+  g.layer = 0; // グループぜんたいの層。中のスプライトの layer に足される
   g.add = (s, ...tags) => { tags.forEach(t => s.addTag(t)); g.push(s); return s; };
   g.remove = (s) => { const i = g.indexOf(s); if (i !== -1) g.splice(i, 1); };
   g.withTag = (t) => g.filter(s => s.hasTag(t));
   g.hit = (target, tag) => g.find(s => (tag === undefined || s.hasTag(tag)) && collide(s, target));
   g.clear = () => { g.length = 0; };
-  g.draw = () => g.forEach(s => s.draw());
+  g.draw = () => __drawAll([g]);
   return g;
 };
 `;
@@ -507,10 +683,12 @@ await Promise.all(__scripts.map(f => f().catch(e => {
   };
 
   const body = compileLines(lines, variables);
+  // 描画は layer の小さい順(奥→手前)。同じ layer なら宣言順。
   const drawJs =
-    `const draw = () => {
+    `const __drawOrder = [${sprites.join(", ")}];
+const draw = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-${sprites.map(s => `  ${s}.draw();`).join("\n")}
+  __drawAll(__drawOrder);
 };
 `;
   const runJs =

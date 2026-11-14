@@ -288,6 +288,18 @@ const SNIPPETS: Record<string, string> = {
   await: "await ",
 };
 
+// setEffect("…") などの 1 つ目の引数で出す、効果の名前。jp は日本語でも書ける名前
+const EFFECTS: { name: string; jp: string; detail: string }[] = [
+  { name: "color", jp: "色", detail: "色相をずらす(200 でひとまわり)" },
+  { name: "fisheye", jp: "魚眼レンズ", detail: "中心をふくらませる" },
+  { name: "whirl", jp: "渦巻き", detail: "中心をねじる(角度)" },
+  { name: "pixelate", jp: "ピクセル化", detail: "粗いブロックにする" },
+  { name: "mosaic", jp: "モザイク", detail: "小さな絵をタイルのように並べる" },
+  { name: "brightness", jp: "明るさ", detail: "明るく/暗く(-100〜100)" },
+  { name: "ghost", jp: "幽霊", detail: "透明にする(0〜100)" },
+];
+const EFFECT_CALL = /\.\s*(?:setEffect|changeEffect|getEffect)\s*\(\s*["'`][^"'`]*$/;
+
 const FUNCS: { name: string; sig: string; body: string }[] = [
   { name: "makeSprite", sig: "(画像, x, y, w, h)", body: 'makeSprite("$0", 0, 0, 64, 64)' },
   { name: "makeShapeSprite", sig: "(x, y, w, h, 色)", body: "makeShapeSprite($0)" },
@@ -316,6 +328,14 @@ const SPRITE_MEMBERS: [string, string][] = [
   ["flip", "スプライトを反転"],
   ["dontFlip", "反転を禁止する"],
   ["changeTexture(", "テクスチャを変更する"],
+  ["layer", "層(大きいほど手前)"],
+  ["setLayer(", "層を決める"],
+  ["toFront(", "いちばん手前に出す"],
+  ["toBack(", "いちばん奥に下げる"],
+  ["setEffect(", '効果をつける("color" など, 値)'],
+  ["changeEffect(", "効果を増減する"],
+  ["getEffect(", "効果の値を調べる"],
+  ["clearEffects(", "効果をぜんぶ消す"],
 ];
 const GROUP_MEMBERS: [string, string][] = [
   ["add(", "追加する"],
@@ -324,6 +344,7 @@ const GROUP_MEMBERS: [string, string][] = [
   ["hit(", "ぶつかった要素"],
   ["clear(", "ぜんぶ消す"],
   ["draw(", "ぜんぶ描く"],
+  ["layer", "グループの層"],
   ["length", "個数"],
   ["push(", "うしろに追加"],
   ["filter(", "絞りこむ"],
@@ -400,6 +421,27 @@ export const getCompletions = (
   if (st.quote) {
     const qi = before.lastIndexOf(st.quote);
     const typed = before.slice(qi + 1);
+
+    // setEffect("…") の中: 効果の名前(日本語で打っているときは日本語のまま入れる)
+    if (EFFECT_CALL.test(before)) {
+      const q = typed.toLowerCase();
+      const effectItems = EFFECTS
+        .map((e) => {
+          const useJp = rank(e.jp, q) < rank(e.name, q);
+          return { e, useJp, r: Math.min(rank(e.name, q), rank(e.jp, q)) };
+        })
+        .filter((x) => x.r < 99)
+        .sort((a, b) => a.r - b.r)
+        .map<Candidate>(({ e, useJp }) => ({
+          label: useJp ? e.jp : e.name,
+          detail: (useJp ? e.name + ": " : e.jp + ": ") + e.detail,
+          kind: "member",
+          body: useJp ? e.jp : e.name,
+        }));
+      if (!effectItems.length || (effectItems.length === 1 && effectItems[0].label === typed)) return null;
+      return { from: ls + qi + 1, items: effectItems, typed };
+    }
+
     const items = assets
       .map((a) => ({ a, r: rank(a, typed.toLowerCase()) }))
       .filter((x) => x.r < 99)

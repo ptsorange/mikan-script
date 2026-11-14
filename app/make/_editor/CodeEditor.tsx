@@ -48,12 +48,16 @@ export default function CodeEditor({
         </button>
       </div>
       <div className="kc-code">
-        <div className="kc-gutter" ref={gutterRef} aria-hidden="true">
-          {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
+        <div className="kc-gutter" aria-hidden="true">
+          <div className="kc-gutter-in" ref={gutterRef}>
+            {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
+          </div>
         </div>
         <div className="kc-area">
-          <pre className="kc-hl" ref={hlRef} aria-hidden="true">
-            {highlighted}
+          <pre className="kc-hl" aria-hidden="true">
+            <span className="kc-hl-in" ref={hlRef}>
+              {highlighted}
+            </span>
           </pre>
           <textarea
             id="codeEdittor"

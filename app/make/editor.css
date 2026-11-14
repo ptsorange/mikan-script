@@ -471,6 +471,8 @@ button.kc-add {
   white-space: pre;
   user-select: none;
 }
+.kc-gutter-in,
+.kc-hl-in { display: block; will-change: transform; }
 .kc-area { position: relative; min-width: 0; }
 .kc-hl,
 .kc-input {

@@ -6,6 +6,17 @@ import * as Blockly from "blockly";
 
 const INDENT = "  ";
 
+// スプライトの効果(スクラッチの「〜の効果」)。[表示名, コードに入れる名前]
+const EFFECT_OPTIONS: [string, string][] = [
+  ["色", "color"],
+  ["魚眼レンズ", "fisheye"],
+  ["渦巻き", "whirl"],
+  ["ピクセル化", "pixelate"],
+  ["モザイク", "mosaic"],
+  ["明るさ", "brightness"],
+  ["幽霊", "ghost"],
+];
+
 // このアプリ専用のブロック(Blockly 標準のブロックにないもの)
 let defined = false;
 export const defineMikanBlocks = () => {
@@ -234,6 +245,79 @@ export const defineMikanBlocks = () => {
       style: "mk_num",
     },
 
+    // 効果・層
+    {
+      type: "mk_sprite_effect_set",
+      message0: "%1 の %2 の効果を %3 にする",
+      args0: [
+        { type: "field_input", name: "SPRITE", text: "player" },
+        { type: "field_dropdown", name: "EFFECT", options: EFFECT_OPTIONS },
+        { type: "input_value", name: "VALUE" },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "mk_looks",
+    },
+    {
+      type: "mk_sprite_effect_change",
+      message0: "%1 の %2 の効果を %3 ずつ変える",
+      args0: [
+        { type: "field_input", name: "SPRITE", text: "player" },
+        { type: "field_dropdown", name: "EFFECT", options: EFFECT_OPTIONS },
+        { type: "input_value", name: "VALUE" },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "mk_looks",
+    },
+    {
+      type: "mk_sprite_effect_clear",
+      message0: "%1 の効果をぜんぶ消す",
+      args0: [{ type: "field_input", name: "SPRITE", text: "player" }],
+      previousStatement: null,
+      nextStatement: null,
+      style: "mk_looks",
+    },
+    {
+      type: "mk_sprite_effect_value",
+      message0: "%1 の %2 の効果",
+      args0: [
+        { type: "field_input", name: "SPRITE", text: "player" },
+        { type: "field_dropdown", name: "EFFECT", options: EFFECT_OPTIONS },
+      ],
+      output: "Number",
+      style: "mk_num",
+    },
+    {
+      type: "mk_sprite_layer",
+      message0: "%1 の層を %2 にする",
+      args0: [
+        { type: "field_input", name: "SPRITE", text: "player" },
+        { type: "input_value", name: "LAYER" },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "mk_looks",
+    },
+    {
+      type: "mk_sprite_order",
+      message0: "%1 を %2 動かす",
+      args0: [
+        { type: "field_input", name: "SPRITE", text: "player" },
+        {
+          type: "field_dropdown",
+          name: "ORDER",
+          options: [
+            ["いちばん手前に", "toFront"],
+            ["いちばん奥に", "toBack"],
+          ],
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "mk_looks",
+    },
+
     // サウンド・ログ    // サウンド・ログ
     {
       type: "mk_play_sound",
@@ -380,6 +464,11 @@ export const TOOLBOX = `
   <category name="見た目" colour="270">
     <block type="mk_print"><value name="VALUE">${txt("こんにちは")}</value></block>
     <block type="mk_clear_log"></block>
+    <block type="mk_sprite_effect_set"><value name="VALUE">${num(50)}</value></block>
+    <block type="mk_sprite_effect_change"><value name="VALUE">${num(10)}</value></block>
+    <block type="mk_sprite_effect_clear"></block>
+    <block type="mk_sprite_layer"><value name="LAYER">${num(0)}</value></block>
+    <block type="mk_sprite_order"></block>
   </category>
 
   <category name="音" colour="300">
@@ -400,6 +489,7 @@ export const TOOLBOX = `
     <block type="mk_mouse_value"></block>
     <block type="mk_sprite_hovering"></block>
     <block type="mk_sprite_clicking"></block>
+    <block type="mk_sprite_effect_value"></block>
     <block type="mk_collision"></block>
   </category>
 
@@ -547,6 +637,8 @@ const expression = (block: Blockly.Block): string => {
       return `${String(block.getFieldValue("SPRITE") ?? "player")}.isHovering()`;
     case "mk_sprite_clicking":
       return `${String(block.getFieldValue("SPRITE") ?? "player")}.isClicking()`;
+    case "mk_sprite_effect_value":
+      return `${String(block.getFieldValue("SPRITE") ?? "player")}.getEffect(${JSON.stringify(String(block.getFieldValue("EFFECT") ?? "color"))})`;
     case "mk_collision":
       return `collide(${String(block.getFieldValue("A") ?? "player")}, ${String(block.getFieldValue("B") ?? "enemy")})`;
     case "mk_text_join":
@@ -659,6 +751,16 @@ const statement = (block: Blockly.Block): string => {
       const target = String(block.getFieldValue("TARGET") ?? "enemy");
       return `${sprite}.lookAt(${target})`;
     }
+    case "mk_sprite_effect_set":
+      return `${String(block.getFieldValue("SPRITE") ?? "player")}.setEffect(${JSON.stringify(String(block.getFieldValue("EFFECT") ?? "color"))}, ${value(block, "VALUE", "0")})`;
+    case "mk_sprite_effect_change":
+      return `${String(block.getFieldValue("SPRITE") ?? "player")}.changeEffect(${JSON.stringify(String(block.getFieldValue("EFFECT") ?? "color"))}, ${value(block, "VALUE", "0")})`;
+    case "mk_sprite_effect_clear":
+      return `${String(block.getFieldValue("SPRITE") ?? "player")}.clearEffects()`;
+    case "mk_sprite_layer":
+      return `${String(block.getFieldValue("SPRITE") ?? "player")}.setLayer(${value(block, "LAYER", "0")})`;
+    case "mk_sprite_order":
+      return `${String(block.getFieldValue("SPRITE") ?? "player")}.${block.getFieldValue("ORDER") === "toBack" ? "toBack" : "toFront"}()`;
     case "mk_play_sound":
       return `playSound(${JSON.stringify(String(block.getFieldValue("NAME") ?? ""))}, ${value(block, "VOLUME", "1")})`;
     case "mk_stop_sound":

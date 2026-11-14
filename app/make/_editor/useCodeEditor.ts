@@ -1,5 +1,5 @@
 import type { Block } from "blockly";
-import { useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { blockToCode } from "@/lib/blocks";
 import {
   typeChar,
@@ -36,7 +36,8 @@ type Params = {
 // コード入力欄の動き: スクロール同期・カーソル位置・キー操作・入力候補・ブロックの挿入
 export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
   const editorRef = useRef<HTMLTextAreaElement>(null);
-  const hlRef = useRef<HTMLPreElement>(null);
+  // 色分け表示・行番号の「中身」。入力欄のスクロール量だけ transform で動かして重ねる
+  const hlRef = useRef<HTMLSpanElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
 
@@ -49,15 +50,28 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     setSuggestState(v);
   };
 
+  // 入力欄(textarea)のスクロールに、色分け表示と行番号を合わせる。
+  // 色分け側を scrollTop で合わせると、入力欄だけがスクロールバーの分せまいため、
+  // 一番下・右までスクロールしたときに動ける量がずれて、カーソルと文字がずれてしまう。
+  // そこで、スクロールさせずに、同じ量だけ transform で動かす。
   const syncScroll = () => {
     const ta = editorRef.current;
     if (!ta) return;
-    if (hlRef.current) {
-      hlRef.current.scrollTop = ta.scrollTop;
-      hlRef.current.scrollLeft = ta.scrollLeft;
-    }
-    if (gutterRef.current) gutterRef.current.scrollTop = ta.scrollTop;
+    if (hlRef.current) hlRef.current.style.transform = `translate(${-ta.scrollLeft}px, ${-ta.scrollTop}px)`;
+    if (gutterRef.current) gutterRef.current.style.transform = `translateY(${-ta.scrollTop}px)`;
   };
+
+  // 文字を入れたあと・大きさが変わったあとも合わせなおす
+  useLayoutEffect(() => {
+    syncScroll();
+  }, [code]);
+  useLayoutEffect(() => {
+    const ta = editorRef.current;
+    if (!ta || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => syncScroll());
+    ro.observe(ta);
+    return () => ro.disconnect();
+  }, []);
 
   const updateCursor = () => {
     const ta = editorRef.current;
