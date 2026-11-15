@@ -50,6 +50,7 @@ export async function listProjects(): Promise<ProjectInfo[]> {
   let files: string[] = [];
   try {
     const { data, error } = await supabase.storage.from(PROJECTS_BUCKET_NAME).list();
+    console.log(data)
     if (error) throw error;
     files = (data || []).map((f) => f.name).filter((f) => /\.mks$/i.test(f));
   } catch {
