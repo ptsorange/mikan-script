@@ -4,15 +4,25 @@ import { useMemo } from "react";
 import { highlight } from "./highlight";
 import type { CodeEditorApi } from "./useCodeEditor";
 
+export type EditorTab = { id: string; label: string; closable: boolean };
+
 type Props = {
-  code: string;
+  code: string; // いま開いているファイルの中身
   editor: CodeEditorApi; // useCodeEditor の戻り値(キー操作などの中身はそちら)
+  tabs: EditorTab[]; // 開いているファイル(main.code と、コードファイル)
+  activeTab: string;
+  onSelectTab: (id: string) => void;
+  onCloseTab: (id: string) => void;
 };
 
 
 // コードを書く場所: 行番号・色分け・入力欄・入力候補
 export default function CodeEditor({
   code,
+  tabs,
+  activeTab,
+  onSelectTab,
+  onCloseTab,
   editor: {
     gutterRef,
     hlRef,
@@ -33,11 +43,32 @@ export default function CodeEditor({
 
   return (
     <section className="kc-editor" aria-label="プログラム">
-      <div className="kc-tabs">
-        <div className="kc-tab">
-          <span className="kc-dot" />
-          main.code
-        </div>
+      <div className="kc-tabs" role="tablist">
+        {tabs.map((t) => (
+          <div key={t.id} className={`kc-tab${t.id === activeTab ? " is-active" : ""}`}>
+            <button
+              className="kc-tab-main"
+              role="tab"
+              aria-selected={t.id === activeTab}
+              title={t.id}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onSelectTab(t.id)}
+            >
+              <span className="kc-dot" />
+              {t.label}
+            </button>
+            {t.closable && (
+              <button
+                className="kc-tab-close"
+                aria-label={`${t.label} を閉じる`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onCloseTab(t.id)}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
         <button
           className="kc-btn kc-tool"
           title="コードを整える(Shift + Alt + F)"

@@ -372,6 +372,9 @@
 }
 .kc-add:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28); }
 .kc-add-sound { background: var(--purple); }
+.kc-add-code { background: #d9890b; }
+.kc-add-alt { background: transparent; color: var(--orange); box-shadow: inset 0 0 0 2px #d9890b; }
+.kc-file.is-active { background: var(--panel-2); border-radius: 6px; }
 
 /* 音ファイルのアイコン(画像のサムネイルの代わり) */
 .kc-snd-ico {
@@ -435,15 +438,46 @@ button.kc-add {
   display: flex;
   background: var(--panel);
 }
+.kc-tabs { overflow-x: auto; }
 .kc-tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 0;
+  border-top: 3px solid transparent;
+  background: var(--panel);
+  color: var(--muted);
+  font: 13px var(--mono);
+}
+.kc-tab.is-active {
+  border-top-color: var(--orange);
+  background: var(--ink);
+  color: var(--text);
+}
+.kc-tab-main {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
-  border-top: 3px solid var(--orange);
-  background: var(--ink);
-  font: 13px var(--mono);
+  padding: 8px 4px 8px 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
+.kc-tab-close {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.kc-tab-close:hover { background: var(--line); color: var(--text); }
+.kc-tab:not(.is-active) .kc-dot { background: var(--muted); }
 .kc-tool {
   align-self: center;
   margin: 0 10px 0 auto;

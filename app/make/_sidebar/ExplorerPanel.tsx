@@ -15,6 +15,7 @@ type Props = {
   onToggleFolder: (key: string) => void;
   onShowPanel: (panel: Panel) => void;
   onFocusEditor: () => void;
+  onOpenFile: (name: string | null) => void; // エディタで開く(null = メインのコード)
   onExport: () => void;
   onImport: (e: ChangeEvent<HTMLInputElement>) => void;
 };
@@ -25,7 +26,7 @@ export default function ExplorerPanel(p: Props) {
   const total = codeBytes + assets.reduce((sum, a) => sum + assetBytes(a), 0);
   const hasConfig = !!(meta.title || meta.author || meta.description);
   const rootFiles = (hasConfig ? 1 : 0) + (thumbnail ? 1 : 0);
-  const fileCount = 1 + assets.length + rootFiles;
+  const fileCount = 1 + assets.length + rootFiles; // main.mjs + 素材とコードファイル + config / thumbnail
 
   // フォルダの行(▾ / ▸ で開け閉め)
   const folderRow = (key: string, label: string, count: number) => {
@@ -77,22 +78,45 @@ export default function ExplorerPanel(p: Props) {
             </li>
           )}
           <li>
-            {folderRow("code", "code", 1)}
+            {folderRow("code", "code", 1 + byKind.code.length)}
             {!closed.code && (
               <ul className="kc-files">
                 <li className="kc-file">
-                  <button className="kc-file-main" title="クリックで、エディタにもどる" onClick={p.onFocusEditor}>
+                  <button
+                    className="kc-file-main"
+                    title="クリックで、メインのコードをエディタで開く"
+                    onClick={() => {
+                      p.onOpenFile(null);
+                      p.onFocusEditor();
+                    }}
+                  >
                     <span></span>
                     <span>main.mjs</span>
                     <span className="kc-size">{fmtSize(codeBytes)}</span>
                   </button>
                 </li>
+                {byKind.code.map((a) => (
+                  <li key={a.name} className="kc-file">
+                    <button
+                      className="kc-file-main"
+                      title="クリックで、エディタで開く"
+                      onClick={() => {
+                        p.onOpenFile(a.name);
+                        p.onFocusEditor();
+                      }}
+                    >
+                      <span></span>
+                      <span>{a.name.slice(KINDS.code.prefix.length)}</span>
+                      <span className="kc-size">{fmtSize(assetBytes(a))}</span>
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
           </li>
 
           {/* 中身があるフォルダだけ出す(zip にも、あるものだけ入るので) */}
-          {KIND_LIST.filter((k) => byKind[k].length > 0).map((kind) => (
+          {KIND_LIST.filter((k) => k !== "code" && byKind[k].length > 0).map((kind) => (
             <li key={kind}>
               {folderRow(kind, kind, byKind[kind].length)}
               {!closed[kind] && (

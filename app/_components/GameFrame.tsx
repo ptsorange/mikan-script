@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
-import { buildScript, type Asset } from "@/lib/mks";
+import { buildScript, kindOf, type Asset } from "@/lib/mks";
 import { SANDBOX_ATTR, SANDBOX_DOC } from "@/lib/sandbox";
 
 /* 作品を動かす画面。隔離された iframe(lib/sandbox.ts)の中でコードを動かす。
@@ -105,7 +105,11 @@ export default function GameFrame({ ref, className, style, onLog, onClearLog, on
     run(code, assets, volume) {
       handlers.current.onClearLog?.();
       try {
-        pending.current = { js: buildScript(code, volume), assets };
+        // コードファイル(code/*.code)は、ここで 1 本の JS にまとめる。iframe には画像と音だけ送る
+        pending.current = {
+          js: buildScript(code, volume, assets),
+          assets: assets.filter((a) => kindOf(a.name) !== "code"),
+        };
       } catch (e) {
         handlers.current.onLog?.("エラー: " + (e instanceof Error ? e.message : String(e)) + "\n");
         return;

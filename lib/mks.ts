@@ -1,8 +1,9 @@
 import JSZip from "jszip";
-import { splitCode, compile, RUNTIME } from "@/lib/lang";
+import { splitCode, compile, RUNTIME, type ModuleSources } from "@/lib/lang";
 
 /* .mks ファイル(zip)まわりの、エディタと「あそぶ」ページで共通の処理。
-   中身:  code/main.mjs ・ texture/* ・ sound/* ・ config.json(あれば) ・ thumbnail.png(あれば)
+   中身:  code/main.mjs ・ code/*.code(import で使うコードファイル) ・ texture/* ・ sound/*
+          ・ config.json(あれば) ・ thumbnail.png(あれば)
    config.json と thumbnail.png は zip の一番上(ルート)に置く */
 
 export const MIME: Record<string, string> = {
@@ -15,37 +16,69 @@ export const MIME: Record<string, string> = {
   wav: "audio/wav",
   ogg: "audio/ogg",
   m4a: "audio/mp4",
+  code: "text/plain",
 };
 
-export type Kind = "texture" | "sound";
+export type Kind = "texture" | "sound" | "code";
 export type Asset = { name: string; data: string }; // name は "texture/cat.png" など、data は data URL
 
 export const KINDS = {
   texture: { prefix: "texture/", ext: /\.(png|jpe?g|gif|webp)$/i, fallbackExt: "png" },
   sound: { prefix: "sound/", ext: /\.(mp3|wav|ogg|m4a)$/i, fallbackExt: "mp3" },
+  // import で使うコードファイル。code/main.mjs(作品のメインのコード)とは別もの
+  code: { prefix: "code/", ext: /\.code$/i, fallbackExt: "code" },
 } as const;
-export const KIND_LIST: Kind[] = ["texture", "sound"];
+export const KIND_LIST: Kind[] = ["texture", "sound", "code"];
 
 export const kindOf = (name: string): Kind | null =>
-  name.startsWith(KINDS.texture.prefix)
-    ? "texture"
-    : name.startsWith(KINDS.sound.prefix)
-      ? "sound"
-      : null;
+  KIND_LIST.find((k) => name.startsWith(KINDS[k].prefix)) ?? null;
 
 export const extOf = (name: string) => name.split(".").pop()?.toLowerCase() ?? "";
 
-// "cat.png" や "texture/cat.png" を "texture/cat.png" にそろえる(sound も同じ)
+// "cat.png" や "texture/cat.png" を "texture/cat.png" にそろえる(sound・code も同じ)
 export const toPath = (raw: string, kind: Kind, fallbackExt?: string) => {
   const k = KINDS[kind];
   let n = raw
     .trim()
-    .replace(/^(texture|sound)\//, "")
+    .replace(/^(texture|sound|code)\//, "")
     .replace(/[\/\\\s"'`]+/g, "_");
   if (!n) return "";
   if (!k.ext.test(n)) n += "." + (fallbackExt ?? k.fallbackExt);
   return k.prefix + n;
 };
+
+/* ---------- コードファイル(code/*.code)の中身 ----------
+   画像や音と同じ Asset(data URL)として持つ。エディタで読み書きするときだけ、文字に変える */
+
+export const textToDataUrl = (text: string): string => {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode(...Array.from(bytes.subarray(i, i + 0x8000)));
+  }
+  return `data:${MIME.code};base64,${btoa(bin)}`;
+};
+
+export const dataUrlToText = (data: string): string => {
+  const i = data.indexOf(",");
+  if (i === -1) return "";
+  const body = data.slice(i + 1);
+  try {
+    if (/;base64/i.test(data.slice(0, i))) {
+      const bin = atob(body);
+      return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+    }
+    return decodeURIComponent(body);
+  } catch {
+    return "";
+  }
+};
+
+export const isCodeAsset = (a: Asset) => kindOf(a.name) === "code" && KINDS.code.ext.test(a.name);
+
+// code/xxx.code の中身を、import で使える形(名前 → ソース)にする
+export const toModuleSources = (assets: Asset[]): ModuleSources =>
+  Object.fromEntries(assets.filter(isCodeAsset).map((a) => [a.name, dataUrlToText(a.data)]));
 
 /* ---------- 作品の情報(config.json)とサムネイル(thumbnail.png) ---------- */
 
@@ -182,7 +215,7 @@ export const fetchProject = async (id: string) => {
    ここで作るのは「iframe の中で動かす JS の文字列」だけ(動かすのは lib/sandbox.ts の iframe)。
    iframe の中には id="gameScreen"(canvas) があり、ログや大きさの変更は
    window.__ms を通して親に postMessage で伝える。 */
-export const buildScript = (code: string, volume: number) => {
+export const buildScript = (code: string, volume: number, assets: Asset[] = []) => {
   const v = Number.isFinite(volume) ? Math.min(100, Math.max(0, volume)) : 100;
   return `(async () => {
 const scriptVolume = ${v};
@@ -214,7 +247,7 @@ ${RUNTIME}
 window.setGlobalVolume = setGlobalVolume; // 親からの音量変更(postMessage)で使う
 setGlobalVolume(scriptVolume / 100);
 
-${compile(splitCode(code), [])}
+${compile(splitCode(code), [], toModuleSources(assets))}
 })().catch((e) => {
   if (e?.message !== "stopped") window.__ms.post({ type: "log", text: "エラー: " + (e?.message ?? e) + "\\n" });
 });`;

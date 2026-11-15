@@ -3,14 +3,15 @@ import type { ReactNode } from "react";
 /* 左端の縦バーに並ぶパネルの一覧(新しいパネルを足すときは、ここと page.tsx の表示部分に足す) */
 
 // 左端の縦バー(VS Code のアクティビティバー)で切りかえるパネル
-export type Panel = "explorer" | "block" | "info" | "texture" | "sound";
+export type Panel = "explorer" | "block" | "info" | "texture" | "sound" | "code";
 
 export const PANELS: { id: Panel; label: string }[] = [
   { id: "explorer", label: "エクスプローラー(書き出しの中身)" },
+  { id: "code", label: "コードファイル(import で使う)" },
   { id: "block", label: "ブロックでコードを作る" },
-  { id: "info", label: "作品の情報(タイトル・説明・サムネ)" },
   { id: "texture", label: "テクスチャ" },
   { id: "sound", label: "サウンド" },
+  { id: "info", label: "作品の情報(タイトル・説明・サムネ)" },
 ];
 
 const svgProps = {
@@ -56,6 +57,13 @@ export const ICONS: Record<Panel, ReactNode> = {
       <path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4z" />
       <path d="M15.5 9a4 4 0 0 1 0 6" />
       <path d="M18 6.5a8 8 0 0 1 0 11" />
+    </svg>
+  ),
+  code: (
+    <svg {...svgProps}>
+      <path d="M8.5 7.5L4 12l4.5 4.5" />
+      <path d="M15.5 7.5L20 12l-4.5 4.5" />
+      <path d="M13.5 5l-3 14" />
     </svg>
   ),
 };

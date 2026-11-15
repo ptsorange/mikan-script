@@ -11,7 +11,7 @@ const group = (cls: string, names: string[]) =>
     if (c) WORD_CLASS[c.jp] = cls;
   });
 group("ev", ["onStart", "onKeyDown", "onKeyUp"]); // イベント(黄)
-group("ct", ["if", "else", "while", "for", "times", "sleep", "await"]); // せいぎょ(橙)
+group("ct", ["if", "else", "while", "for", "times", "sleep", "await", "import"]); // せいぎょ(橙)
 group("lk", ["print", "println", "clearLog"]); // 見た目(紫)
 group("vr", ["text", "num", "sprite"]); // へんすう・スプライト(ピンク)
 group("mt", ["setScreenSize", "makeSprite", "playSound", "stopSound"]); // 関数(水色)

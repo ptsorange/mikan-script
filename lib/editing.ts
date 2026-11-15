@@ -1,4 +1,4 @@
-import { commands } from "./lang";
+import { commands, normalizeModulePath } from "./lang";
 
 /* ---------- エディタの入力補助(かっこ・インデント・整形・候補) ---------- */
 
@@ -286,6 +286,7 @@ const SNIPPETS: Record<string, string> = {
   num: "num $0 = 0",
   sprite: "sprite $0 = ",
   await: "await ",
+  import: 'import $0 "/code/"',
 };
 
 // setEffect("…") などの 1 つ目の引数で出す、効果の名前。jp は日本語でも書ける名前
@@ -359,13 +360,53 @@ const MOUSE_MEMBERS: [string, string][] = [
 
 const ID = "[\\p{L}_$][\\p{L}\\p{N}_$]*";
 
+/* ---------- コードファイル(import) ---------- */
+
+// import の行: import 名前 "パス" / import "パス"(名前はファイル名)
+const IMPORT_LINE = new RegExp(
+  `^[ \\t]*(?:import|インポート)[ \\t]+(?:(${ID})(?:[ \\t]+from)?[ \\t]+)?["'\`]([^"'\`\\n]*)["'\`]`,
+  "gmu"
+);
+// import の途中(パスの " の中)を打っているとき
+const IMPORT_PATH_TYPING = new RegExp(
+  `^[ \\t]*(?:import|インポート)[ \\t]+(?:${ID}(?:[ \\t]+from)?[ \\t]+)?["'\`][^"'\`]*$`,
+  "u"
+);
+
+// 名前 → コードファイルのパス(code/xxx.code)
+const scanImports = (code: string) => {
+  const map = new Map<string, string>();
+  for (const m of code.matchAll(IMPORT_LINE)) {
+    const path = normalizeModulePath(m[2]);
+    if (!path) continue;
+    const alias = m[1] ?? path.slice("code/".length).replace(/\.code$/i, "");
+    map.set(alias, path);
+  }
+  return map;
+};
+
+// コードファイルの一番上(行のいちばん左)にある、外から使える名前
+const scanExports = (src: string): [string, string][] => {
+  const out: [string, string][] = [];
+  const re = new RegExp(
+    `^(?:(?:function|関数)[ \\t]+(${ID})[ \\t]*\\(([^)\\n]*)\\)|(?:num|数|text|テキスト|let)[ \\t]+(${ID})|(?:sprite|スプライト)[ \\t]+(${ID}))`,
+    "gmu"
+  );
+  for (const m of src.matchAll(re)) {
+    if (m[1]) out.push([m[1] + "(", `関数(${m[2].trim()})`]);
+    else if (m[3]) out.push([m[3], "変数"]);
+    else if (m[4]) out.push([m[4], "スプライト"]);
+  }
+  return out;
+};
+
 /** コードの中で宣言された名前を集める */
 const scanNames = (code: string) => {
   const vars = new Set<string>();
   const sprites = new Set<string>();
   const groups = new Set<string>();
   const decl = new RegExp(
-    `(?:^|[\\s;{}])(sprite|スプライト|num|数|text|テキスト|let|const|var|function|関数)\\s+(${ID})(\\s*\\[\\s*\\]|\\s*=\\s*\\[\\s*\\])?`,
+    `(?:^|[\\s;{}])(sprite|スプライト|num|数|text|テキスト|let|const|var|function|関数|import|インポート)\\s+(${ID})(\\s*\\[\\s*\\]|\\s*=\\s*\\[\\s*\\])?`,
     "gu"
   );
   for (const m of code.matchAll(decl)) {
@@ -410,7 +451,8 @@ export const getCompletions = (
   v: string,
   caret: number,
   assets: string[],
-  force = false
+  force = false,
+  modules?: (path: string) => string | undefined // コードファイルの中身(「名前.」のあとの候補用)
 ): Completion | null => {
   const ls = lineStart(v, caret);
   const before = v.slice(ls, caret);
@@ -442,7 +484,22 @@ export const getCompletions = (
       return { from: ls + qi + 1, items: effectItems, typed };
     }
 
+    // import 名前 "…" の中: コードファイルのパス
+    if (IMPORT_PATH_TYPING.test(before)) {
+      const q = typed.toLowerCase().replace(/^\.?\//, "").replace(/^code\//, "");
+      const codeItems = assets
+        .filter((a) => a.startsWith("code/"))
+        .map((a) => ({ a, r: rank(a.slice("code/".length), q) }))
+        .filter((x) => x.r < 99)
+        .sort((x, y) => x.r - y.r || x.a.localeCompare(y.a))
+        .slice(0, 8)
+        .map<Candidate>(({ a }) => ({ label: "/" + a, detail: "コード", kind: "file", body: "/" + a }));
+      if (!codeItems.length || (codeItems.length === 1 && codeItems[0].label === typed)) return null;
+      return { from: ls + qi + 1, items: codeItems, typed };
+    }
+
     const items = assets
+      .filter((a) => !a.startsWith("code/")) // コードファイルは import のパスにだけ出す
       .map((a) => ({ a, r: rank(a, typed.toLowerCase()) }))
       .filter((x) => x.r < 99)
       .sort((x, y) => x.r - y.r || x.a.localeCompare(y.a))
@@ -465,7 +522,9 @@ export const getCompletions = (
     const obj = dot[1];
     const typed = dot[2];
     let list: [string, string][];
-    if (obj === "mouse" || obj === "マウス") list = MOUSE_MEMBERS;
+    const importedPath = scanImports(v).get(obj);
+    if (importedPath) list = scanExports(modules?.(importedPath) ?? "");
+    else if (obj === "mouse" || obj === "マウス") list = MOUSE_MEMBERS;
     else if (names.groups.has(obj)) list = GROUP_MEMBERS;
     else if (names.sprites.has(obj)) list = SPRITE_MEMBERS;
     else list = [...SPRITE_MEMBERS, ...GROUP_MEMBERS];

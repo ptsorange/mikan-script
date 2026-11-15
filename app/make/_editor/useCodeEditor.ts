@@ -13,7 +13,7 @@ import {
   type Edit,
   type Candidate,
 } from "@/lib/editing";
-import type { Asset } from "@/lib/mks";
+import { dataUrlToText, type Asset } from "@/lib/mks";
 
 // 入力候補(x, y は入力欄の中での位置)
 export type Suggest = {
@@ -29,7 +29,7 @@ export type Suggest = {
 type Params = {
   code: string;
   onCodeChange: (value: string) => void;
-  assets: Asset[]; // makeSprite(" のあとに、画像の名前を候補に出す
+  assets: Asset[]; // makeSprite(" のあとに画像の名前を、import "…" のあとにコードファイルの名前を、候補に出す
   onRun: () => void; // Ctrl + Enter
 };
 
@@ -151,7 +151,11 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
       ta.value,
       caret,
       assets.map((a) => a.name),
-      force
+      force,
+      (path) => {
+        const a = assets.find((x) => x.name === path);
+        return a ? dataUrlToText(a.data) : undefined;
+      }
     );
     if (!res) return setSuggest(null);
 

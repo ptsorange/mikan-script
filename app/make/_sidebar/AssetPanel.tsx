@@ -4,7 +4,7 @@ import { useRef, type ChangeEvent } from "react";
 import { KINDS, kindOf, type Asset, type Kind } from "@/lib/mks";
 
 type Props = {
-  kind: Kind;
+  kind: Exclude<Kind, "code">; // コードファイルは CodePanel
   files: Asset[];
   editing: string | null; // 名前を変えている最中のファイル
   draft: string;
