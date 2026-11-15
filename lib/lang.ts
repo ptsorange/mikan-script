@@ -446,9 +446,57 @@ const makeSprite = (src, x = 0, y = 0, w, h) => {
   });
 };
 
-// makeShapeSprite also supports middle=true for center-based coordinates.
-const makeShapeSprite = (shape = 4, x = 0, y = 0, w = 50, h = 50, color = "white") =>
-  Object.assign(Object.create(__spriteBase), {
+// makeShapeSprite supports both signatures:
+//   makeShapeSprite(x, y, w, h, color)                 // rectangle (legacy/simple form)
+//   makeShapeSprite(shape, x, y, w, h, color)           // explicit shape
+// The original 5-argument shape-first form (shape, x, y, w, h) is also preserved.
+const makeShapeSprite = (...args) => {
+  let shape = 4;
+  let x = 0;
+  let y = 0;
+  let w = 50;
+  let h = 50;
+  let color = "white";
+
+  if (args.length >= 6) {
+    // Explicit shape + color.
+    shape = args[0];
+    x = args[1];
+    y = args[2];
+    w = args[3];
+    h = args[4];
+    color = args[5];
+  } else if (args.length === 5 && typeof args[4] === "string" && typeof args[0] !== "string") {
+    // Simple rectangle form: x, y, width, height, color.
+    x = args[0];
+    y = args[1];
+    w = args[2];
+    h = args[3];
+    color = args[4];
+    shape = "rect";
+  } else if (args.length >= 5) {
+    // Backward-compatible shape-first form without an explicit color.
+    shape = args[0];
+    x = args[1];
+    y = args[2];
+    w = args[3];
+    h = args[4];
+  } else if (args.length === 4) {
+    // Rectangle without an explicit color.
+    x = args[0];
+    y = args[1];
+    w = args[2];
+    h = args[3];
+    shape = "rect";
+  } else if (args.length > 0) {
+    // Partial shape-first form; omitted values keep their defaults.
+    shape = args[0];
+    if (args.length > 1) x = args[1];
+    if (args.length > 2) y = args[2];
+    if (args.length > 3) w = args[3];
+  }
+
+  return Object.assign(Object.create(__spriteBase), {
     shape, x, y, w, h, r: 0, color, tags: [],
     flip: false,
     size: 1,
@@ -465,9 +513,12 @@ const makeShapeSprite = (shape = 4, x = 0, y = 0, w = 50, h = 50, color = "white
         c.beginPath();
         const rad = Math.min(sw, sh) / 2;
 
-        if (typeof shape === "number") {
-          for (let i = 0; i < shape; i++) {
-            const a = (i * 2 * Math.PI) / shape - Math.PI / 2;
+        if (shape === "rect" || shape === "rectangle") {
+          c.rect(-sw / 2, -sh / 2, sw, sh);
+        } else if (typeof shape === "number") {
+          const sides = Math.max(3, Math.floor(shape));
+          for (let i = 0; i < sides; i++) {
+            const a = (i * 2 * Math.PI) / sides - Math.PI / 2;
             const px = rad * Math.cos(a), py = rad * Math.sin(a);
             i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
           }
@@ -487,6 +538,7 @@ const makeShapeSprite = (shape = 4, x = 0, y = 0, w = 50, h = 50, color = "white
       });
     },
   });
+};
 
 // makeTextSprite also supports middle=true; its w/h getters already include size.
 const makeTextSprite = (text = "", x = 0, y = 0, fontSize = 24, color = "white") =>
@@ -900,12 +952,13 @@ export const splitCode = (code: string): Token[][] => {
   let line: Token[] | null = null;
   let prev = false;
   let parenDepth = 0; // () のネストの深さ
+  let bracketDepth = 0; // [] のネストの深さ。配列の中の改行を維持する
 
   for (let [t] of code.matchAll(TOKEN_RE)) {
     if (t === "\n" || t === ";") {
-      // () の中なら改行・セミコロンでは行を区切らない
-      // (for(;;) のセミコロンも壊れなくなります)
-      if (parenDepth === 0) line = null;
+      // () や [] の中なら改行・セミコロンでは行を区切らない
+      // (for(;;) や複数行配列も壊れなくなります)
+      if (parenDepth === 0 && bracketDepth === 0) line = null;
       continue;
     }
     if (/^[ \t\r]+$/.test(t) || t.startsWith("//")) continue;
@@ -920,9 +973,11 @@ export const splitCode = (code: string): Token[][] => {
     if (t == ".") prev = true;
     else prev = false;
 
-    // 括弧の深さを更新(文字列トークンは "(" と一致しないので影響なし)
+    // 括弧の深さを更新(文字列トークンは括弧と一致しないので影響なし)
     if (t === "(") parenDepth++;
     else if (t === ")" && parenDepth > 0) parenDepth--;
+    else if (t === "[") bracketDepth++;
+    else if (t === "]" && bracketDepth > 0) bracketDepth--;
 
     if (t === "{") {
       const block: Token[][] = [];

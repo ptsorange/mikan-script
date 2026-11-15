@@ -7,8 +7,8 @@ export type Panel = "explorer" | "block" | "info" | "texture" | "sound" | "code"
 
 export const PANELS: { id: Panel; label: string }[] = [
   { id: "explorer", label: "エクスプローラー(書き出しの中身)" },
-  { id: "code", label: "コードファイル(import で使う)" },
   { id: "block", label: "ブロックでコードを作る" },
+  { id: "code", label: "コードファイル(import で使う)" },
   { id: "texture", label: "テクスチャ" },
   { id: "sound", label: "サウンド" },
   { id: "info", label: "作品の情報(タイトル・説明・サムネ)" },
