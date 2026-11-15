@@ -638,7 +638,7 @@ const TOKEN_RE = new RegExp(
     String.raw`\`(?:\\.|[^\`\\])*\`?`,
     String.raw`\n|;`,
     String.raw`[ \t\r]+`,
-    String.raw`\d+(?:\.\d+)?`,
+    String.raw`\d+(?:\.\d+)?(?:[eE][+-]?\d+)?`,
     String.raw`===|!==|==|!=|<=|>=|&&|\|\||\+\+|--|\+=|-=|\*=|\/=|=>`,
     String.raw`[.,:?!%()=<>+\-*\/|&\[\]{}]`,
     String.raw`[^\s.,:?!%()=<>+\-*\/|&\[\]{}"'\`;]+`,
