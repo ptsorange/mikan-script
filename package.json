@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "blockly": "^13.4.0",
     "jszip": "^3.10.2",
     "next": "16.4.4",
