@@ -1,6 +1,12 @@
 import JSZip from "jszip";
 import { cacheLife } from "next/cache";
-import { readConfig, findThumbnail } from "@/lib/mks";
+import {
+  readConfig,
+  findThumbnail,
+  getProjectPublicUrl,
+  PROJECTS_BUCKET_NAME,
+  SUPABASE_URL,
+} from "@/lib/mks";
 import { createClient } from "@supabase/supabase-js";
 
 export type ProjectInfo = {
@@ -11,35 +17,17 @@ export type ProjectInfo = {
   hasThumbnail: boolean;
 };
 
-const SUPABASE_URL = "https://ihvbsisbjlhhqwghxhvp.supabase.co";
-const BUCKET_NAME = "mikanScriptProjects";
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_bW-hBshIFIxsHwHgu-q0LA_CDWq8Wkr"
 );
 
-async function listFiles() {
-  // バケット名 'mikanScriptProjects' のルート直下をlsする
-  const { data, error } = await supabase
-    .storage
-    .from(BUCKET_NAME)
-    .list();
-
-  if (error) {
-    console.error('取得エラー:', error);
-    return;
-  }
-
-  return [data,data.map(file => file.name)]
-}
 
 const readInfo = async (fileName: string): Promise<ProjectInfo> => {
   const id = fileName.replace(/\.mks$/i, "");
   const info: ProjectInfo = { id, title: id, author: "", description: "", hasThumbnail: false };
   try {
-    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${fileName}`;
-    const res = await fetch(publicUrl);
+    const res = await fetch(getProjectPublicUrl(fileName));
     if (!res.ok) throw new Error("Failed to fetch");
     const arrayBuffer = await res.arrayBuffer();
 
@@ -61,7 +49,7 @@ export async function listProjects(): Promise<ProjectInfo[]> {
 
   let files: string[] = [];
   try {
-    const { data, error } = await supabase.storage.from(BUCKET_NAME).list();
+    const { data, error } = await supabase.storage.from(PROJECTS_BUCKET_NAME).list();
     if (error) throw error;
     files = (data || []).map((f) => f.name).filter((f) => /\.mks$/i.test(f));
   } catch {
@@ -79,8 +67,7 @@ export async function getThumbnail(id: string): Promise<{ type: string; base64: 
   const project = (await listProjects()).find((p) => p.id === id);
   if (!project || !project.hasThumbnail) return null;
   try {
-    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${project.id}.mks`;
-    const res = await fetch(publicUrl);
+    const res = await fetch(getProjectPublicUrl(`${project.id}.mks`));
     if (!res.ok) throw new Error("Failed to fetch");
     const arrayBuffer = await res.arrayBuffer();
 

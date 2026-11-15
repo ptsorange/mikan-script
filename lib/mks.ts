@@ -1,6 +1,16 @@
 import JSZip from "jszip";
 import { splitCode, compile, RUNTIME, type ModuleSources } from "@/lib/lang";
 
+// 公開プロジェクトを保存している Supabase Storage
+export const PROJECTS_BUCKET_NAME = "mikanScriptProjects";
+export const SUPABASE_URL = (
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  "https://ihvbsisbjlhhqwghxhvp.supabase.co"
+).replace(/\/+$/, "");
+
+export const getProjectPublicUrl = (fileName: string) =>
+  `${SUPABASE_URL}/storage/v1/object/public/${PROJECTS_BUCKET_NAME}/${encodeURIComponent(fileName)}`;
+
 /* .mks ファイル(zip)まわりの、エディタと「あそぶ」ページで共通の処理。
    中身:  code/main.mjs ・ code/*.code(import で使うコードファイル) ・ texture/* ・ sound/*
           ・ config.json(あれば) ・ thumbnail.png(あれば)
@@ -202,10 +212,14 @@ export const parseMks = async (
   return { code, assets, meta, thumbnail };
 };
 
-// public/projects/ の作品を取ってきて読み込む
+// Supabase Storage から作品を取ってきて読み込む
 export const fetchProject = async (id: string) => {
-  const res = await fetch(`/projects/${encodeURIComponent(id)}.mks`);
-  if (!res.ok) throw new Error("作品が見つかりません");
+  // 一覧の id は通常拡張子なし。拡張子付きで渡されても二重に付けない。
+  const fileName = /\.mks$/i.test(id) ? id : `${id}.mks`;
+  const res = await fetch(getProjectPublicUrl(fileName));
+  if (!res.ok) {
+    throw new Error(`作品の取得に失敗しました (${res.status})`);
+  }
   return parseMks(await res.arrayBuffer());
 };
 
