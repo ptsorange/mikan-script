@@ -287,6 +287,13 @@ const SNIPPETS: Record<string, string> = {
   sprite: "sprite $0 = ",
   await: "await ",
   import: 'import $0 "/code/"',
+  penColor: 'penColor("$0")',
+  penSize: "penSize($0)",
+  penDot: "penDot($0)",
+  penLine: "penLine($0)",
+  penRect: "penRect($0)",
+  penCircle: "penCircle($0)",
+  penClear: "penClear()",
 };
 
 // setEffect("…") などの 1 つ目の引数で出す、効果の名前。jp は日本語でも書ける名前

@@ -15,6 +15,7 @@ group("ct", ["if", "else", "while", "for", "times", "sleep", "await", "import"])
 group("lk", ["print", "println", "clearLog"]); // 見た目(紫)
 group("vr", ["text", "num", "sprite"]); // へんすう・スプライト(ピンク)
 group("mt", ["setScreenSize", "makeSprite", "playSound", "stopSound"]); // 関数(水色)
+group("pn", ["penColor", "penSize", "penDot", "penLine", "penRect", "penCircle", "penClear"]); // ペン(緑)
 
 const HL_RE =
   /(\/\/[^\n]*)|("(?:\\.|[^"\\\n])*"?|'(?:\\.|[^'\\\n])*'?)|(\d+(?:\.\d+)?)|([^\s.,:?!%()=<>+\-*\/|&\[\]{}"';]+)/g;

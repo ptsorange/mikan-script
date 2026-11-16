@@ -581,6 +581,7 @@ button.kc-add {
 .tk-lk { color: #b896ff; background: rgba(153, 102, 255, 0.2); border-radius: 4px; }
 .tk-vr { color: #ee93ee; background: rgba(207, 99, 207, 0.18); border-radius: 4px; }
 .tk-mt { color: var(--cyan); background: rgba(89, 192, 224, 0.16); border-radius: 4px; }
+.tk-pn { color: #3fe0b5; background: rgba(15, 189, 140, 0.18); border-radius: 4px; }
 
 /* ---------- 右: ステージ ---------- */
 .kc-stage {
