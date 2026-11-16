@@ -104,13 +104,90 @@ const __spriteCenter = (s) => {
   const b = __spriteBounds(s);
   return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
 };
-const collide = (a, b) => {
-  const A = __spriteBounds(a);
-  const B = __spriteBounds(b);
-  return A.x < B.x + B.w &&
-    A.x + A.w > B.x &&
-    A.y < B.y + B.h &&
-    A.y + A.h > B.y;
+// 回転も含めて、スプライトがぜんぶ入る矩形(画像で当たり判定するときの、ざっくりチェック用)
+const __rotBounds = (s) => {
+  const b = __spriteBounds(s);
+  if (s.dontFlip || !s.r) return b; // dontFlip のスプライトは回転して描かれない
+  const t = toRadians(s.r);
+  const cs = Math.abs(Math.cos(t));
+  const sn = Math.abs(Math.sin(t));
+  const w = b.w * cs + b.h * sn;
+  const h = b.w * sn + b.h * cs;
+  const cx = b.x + b.w / 2;
+  const cy = b.y + b.h / 2;
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
+};
+
+// 画像の当たり判定: 重なっている範囲に 2 つのスプライトを実際に描いて、
+// どちらも色がついているピクセルが 1 つでもあれば true。
+// (回転・反転・大きさ・middle はそのまま反映。ghost などの効果は無視して形だけで見る)
+// __renderSprite が描く先。ふだんは本物の canvas。当たり判定のときだけ別の canvas に切りかわる
+let __rc = ctx;
+let __maskOnly = false; // true のあいだは効果(ghost など)を使わず、形だけ描く
+const __maskA = document.createElement("canvas");
+const __maskB = document.createElement("canvas");
+const __maskCtxA = __maskA.getContext("2d", { willReadFrequently: true });
+const __maskCtxB = __maskB.getContext("2d", { willReadFrequently: true });
+const __drawMask = (c, s, o, k) => {
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = "source-over";
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, __maskA.width, __maskA.height);
+  c.setTransform(k, 0, 0, k, -o.x * k, -o.y * k);
+  __rc = c;
+  __maskOnly = true;
+  try { s.draw(); } finally { __rc = ctx; __maskOnly = false; }
+  c.setTransform(1, 0, 0, 1, 0, 0);
+};
+const __pixelHit = (a, b, o) => {
+  const k = Math.min(1, Math.sqrt(65536 / (o.w * o.h))); // 広いときは粗くして軽くする
+  const W = Math.max(1, Math.ceil(o.w * k));
+  const H = Math.max(1, Math.ceil(o.h * k));
+  if (__maskA.width !== W || __maskA.height !== H) {
+    __maskA.width = W; __maskA.height = H;
+    __maskB.width = W; __maskB.height = H;
+  }
+  try {
+    __drawMask(__maskCtxA, a, o, k);
+    __drawMask(__maskCtxB, b, o, k);
+    __maskCtxA.globalCompositeOperation = "destination-in"; // 両方に色があるところだけ残す
+    __maskCtxA.drawImage(__maskB, 0, 0);
+    __maskCtxA.globalCompositeOperation = "source-over";
+    const d = __maskCtxA.getImageData(0, 0, W, H).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true;
+    return false;
+  } catch {
+    return true; // 画像が読めなかったときは、矩形で当たったことにする
+  }
+};
+
+// collide(a, b, type)  type: "rect"(矩形) / "circle"(円) / "img"(画像のピクセル。省略するとこれ)
+const collide = (a, b, type = "img") => {
+  if (type === "circle") {
+    const A = __spriteBounds(a);
+    const B = __spriteBounds(b);
+    const dx = (A.x + A.w / 2) - (B.x + B.w / 2);
+    const dy = (A.y + A.h / 2) - (B.y + B.h / 2);
+    const rr = Math.min(A.w, A.h) / 2 + Math.min(B.w, B.h) / 2;
+    return dx * dx + dy * dy < rr * rr;
+  }
+  if (type === "rect") {
+    const A = __spriteBounds(a);
+    const B = __spriteBounds(b);
+    return A.x < B.x + B.w &&
+      A.x + A.w > B.x &&
+      A.y < B.y + B.h &&
+      A.y + A.h > B.y;
+  }
+  const A = __rotBounds(a);
+  const B = __rotBounds(b);
+  const x1 = Math.max(A.x, B.x);
+  const y1 = Math.max(A.y, B.y);
+  const x2 = Math.min(A.x + A.w, B.x + B.w);
+  const y2 = Math.min(A.y + A.h, B.y + B.h);
+  if (x2 <= x1 || y2 <= y1) return false; // 矩形が重なっていなければ、ピクセルは見ない
+  if (typeof a.draw !== "function" || typeof b.draw !== "function") return true; // x,y,w,h だけのオブジェクトは矩形で判定
+  return __pixelHit(a, b, { x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
 };
 
 const __scripts = [];
@@ -360,23 +437,24 @@ const __drawFx = (e, sw, sh, paint) => {
 
 // 3 種類のスプライトが共通で使う描画。位置・回転・反転・効果をここで処理する。
 const __renderSprite = (s, sw, sh, rotate, paint) => {
+  const c = __rc;
   const cx = s.middle ? s.x : s.x + sw / 2;
   const cy = s.middle ? s.y : s.y + sh / 2;
-  ctx.save();
-  ctx.translate(cx, cy);
-  if (rotate) ctx.rotate(toRadians(s.r));
-  if (s.flip) ctx.scale(-1, 1);
-  const e = s.effects;
+  c.save();
+  c.translate(cx, cy);
+  if (rotate) c.rotate(toRadians(s.r));
+  if (s.flip) c.scale(-1, 1);
+  const e = __maskOnly ? null : s.effects;
   if (e) {
     const ghost = Math.min(100, Math.max(0, Number(e.ghost) || 0));
-    if (ghost > 0) ctx.globalAlpha *= 1 - ghost / 100;
+    if (ghost > 0) c.globalAlpha *= 1 - ghost / 100;
   }
   if (e && __hasPixelFx(e) && Math.abs(sw) >= 1 && Math.abs(sh) >= 1 && isFinite(sw) && isFinite(sh)) {
     __drawFx(e, sw, sh, paint);
   } else {
-    paint(ctx);
+    paint(c);
   }
-  ctx.restore();
+  c.restore();
 };
 const __spriteBase = {
   move(speed) {
@@ -579,7 +657,7 @@ const __makeGroup = () => {
   g.add = (s, ...tags) => { tags.forEach(t => s.addTag(t)); g.push(s); return s; };
   g.remove = (s) => { const i = g.indexOf(s); if (i !== -1) g.splice(i, 1); };
   g.withTag = (t) => g.filter(s => s.hasTag(t));
-  g.hit = (target, tag) => g.find(s => (tag === undefined || s.hasTag(tag)) && collide(s, target));
+  g.hit = (target, tag, type) => g.find(s => (tag === undefined || s.hasTag(tag)) && collide(s, target, type));
   g.clear = () => { g.length = 0; };
   g.draw = () => __drawAll([g]);
   return g;
