@@ -5,6 +5,7 @@ import Link from "next/link";
 import { fetchProject, type Asset } from "@/lib/mks";
 import type { ProjectInfo } from "@/lib/projects";
 import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
+import TouchControls from "./TouchControls";
 
 const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないように、古い分から捨てる
 
@@ -184,6 +185,13 @@ export default function Player({ project }: { project: ProjectInfo }) {
                 </div>
               </div>
             )}
+            <TouchControls
+              projectId={project.id}
+              started={started}
+              layoutKey={`${size.w}:${size.h}:${isFullscreen}:${fsBox?.w ?? 0}:${fsBox?.h ?? 0}`}
+              stageRef={stageRef}
+              frameRef={frameRef}
+            />
           </div>
         </section>
 

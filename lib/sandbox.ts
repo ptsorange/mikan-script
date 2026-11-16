@@ -128,8 +128,85 @@ export const SANDBOX_DOC = String.raw`<!doctype html>
     }
   }
 
+  // 親ページから届く、タッチ操作用の仮想入力。
+  // キーイベントは既存の onKeyDown / onKeyUp / isKey に届く。
+  var virtualKeys = Object.create(null);
+  var virtualButtons = Object.create(null);
+  function dispatchVirtualKey(key, down) {
+    if (down && virtualKeys[key]) return;
+    if (!down && !virtualKeys[key]) return;
+    if (down) virtualKeys[key] = true;
+    else delete virtualKeys[key];
+    document.dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", {
+      key: key,
+      bubbles: true,
+      cancelable: true
+    }));
+  }
+  function dispatchVirtualMouse(action, button, x, y) {
+    var rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var nx = Math.max(0, Math.min(1, Number(x)));
+    var ny = Math.max(0, Math.min(1, Number(y)));
+    if (!isFinite(nx)) nx = 0.5;
+    if (!isFinite(ny)) ny = 0.5;
+    var clientX = rect.left + nx * rect.width;
+    var clientY = rect.top + ny * rect.height;
+    canvas.dispatchEvent(new MouseEvent("mousemove", {
+      clientX: clientX, clientY: clientY, bubbles: true
+    }));
+    if (action === "move") return;
+    var names = { left: 0, middle: 1, right: 2 };
+    var number = names[button];
+    if (number === undefined) return;
+    var id = String(number);
+    if (action === "down" && virtualButtons[id]) return;
+    if (action === "up" && !virtualButtons[id]) return;
+    if (action === "down") virtualButtons[id] = true;
+    else delete virtualButtons[id];
+
+    // 現在の lang.ts は pointerup で「押下」、pointerdown で「解放」を記録するため、
+    // 仮想入力ではその順序を反転して、ゲーム側には通常の押下状態を見せる。
+    var eventType = action === "down" ? "pointerup" : "pointerdown";
+    var EventType = window.PointerEvent || window.MouseEvent;
+    canvas.dispatchEvent(new EventType(eventType, {
+      button: number,
+      buttons: action === "down" ? ({ 0: 1, 1: 4, 2: 2 }[number]) : 0,
+      clientX: clientX,
+      clientY: clientY,
+      pointerId: 1,
+      pointerType: "touch",
+      bubbles: true,
+      cancelable: true
+    }));
+  }
+  function handleVirtualInput(m) {
+    if (m.inputType === "key") {
+      if (typeof m.key !== "string" || !m.key || m.key.length > 32) return;
+      if (m.action === "down") dispatchVirtualKey(m.key, true);
+      else if (m.action === "up") dispatchVirtualKey(m.key, false);
+      return;
+    }
+    if (m.inputType === "mouse" && (m.action === "down" || m.action === "up" || m.action === "move")) {
+      dispatchVirtualMouse(m.action, m.button, m.x, m.y);
+    }
+  }
+  function releaseVirtualInputs() {
+    Object.keys(virtualKeys).forEach(function (key) { dispatchVirtualKey(key, false); });
+    Object.keys(virtualButtons).forEach(function (button) {
+      var names = { 0: "left", 1: "middle", 2: "right" };
+      dispatchVirtualMouse("up", names[button], 0.5, 0.5);
+    });
+  }
+  // iframe がフォーカスを失ったときも、仮想入力を押しっぱなしにしない。
+  window.addEventListener("blur", releaseVirtualInputs);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) releaseVirtualInputs();
+  });
+
   // 「止める」: RUNTIME の仕組み(__runId と __cleanups)で、動きと音を止める
   function stop() {
+    releaseVirtualInputs();
     window.__runId = (window.__runId || 0) + 1;
     var fs = window.__cleanups || [];
     window.__cleanups = [];
@@ -141,6 +218,7 @@ export const SANDBOX_DOC = String.raw`<!doctype html>
     var m = e.data;
     if (!m || typeof m !== "object") return;
     if (m.type === "run") run(m);
+    else if (m.type === "input") handleVirtualInput(m);
     else if (m.type === "stop") stop();
     else if (m.type === "volume") {
       if (typeof window.setGlobalVolume === "function") window.setGlobalVolume(Number(m.value));

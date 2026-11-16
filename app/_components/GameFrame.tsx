@@ -17,6 +17,14 @@ export type GameFrameHandle = {
   stop: () => void;
   /** 音量 0〜100 */
   setVolume: (volume: number) => void;
+  /** タッチ操作からキー入力を送る */
+  pressKey: (key: string, pressed: boolean) => void;
+  /** タッチ操作からマウスボタン入力を送る。座標は 0〜1 */
+  pressMouse: (button: "left" | "middle" | "right", pressed: boolean, x: number, y: number) => void;
+  /** タッチ操作からマウス座標を動かす。座標は 0〜1 */
+  moveMouse: (x: number, y: number) => void;
+  /** iframe の画面上の位置 */
+  getBounds: () => Pick<DOMRect, "left" | "top" | "width" | "height"> | null;
   /** いまの画面を PNG の data URL で返す(取れなければ null) */
   capture: () => Promise<string | null>;
   /** キー入力が作品に届くように、iframe にフォーカスする */
@@ -123,6 +131,34 @@ export default function GameFrame({ ref, className, style, onLog, onClearLog, on
     },
     setVolume(volume) {
       send({ type: "volume", value: volume / 100 });
+    },
+    pressKey(key, pressed) {
+      if (typeof key !== "string" || !key || key.length > 32) return;
+      send({ type: "input", inputType: "key", action: pressed ? "down" : "up", key });
+    },
+    pressMouse(button, pressed, x, y) {
+      if (button !== "left" && button !== "middle" && button !== "right") return;
+      send({
+        type: "input",
+        inputType: "mouse",
+        action: pressed ? "down" : "up",
+        button,
+        x: Math.max(0, Math.min(1, Number(x) || 0)),
+        y: Math.max(0, Math.min(1, Number(y) || 0)),
+      });
+    },
+    moveMouse(x, y) {
+      send({
+        type: "input",
+        inputType: "mouse",
+        action: "move",
+        x: Math.max(0, Math.min(1, Number(x) || 0)),
+        y: Math.max(0, Math.min(1, Number(y) || 0)),
+      });
+    },
+    getBounds() {
+      const rect = frameRef.current?.getBoundingClientRect();
+      return rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null;
     },
     capture() {
       return new Promise((resolve) => {
