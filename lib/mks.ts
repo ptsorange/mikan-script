@@ -8,8 +8,12 @@ export const SUPABASE_URL = (
   "https://ihvbsisbjlhhqwghxhvp.supabase.co"
 ).replace(/\/+$/, "");
 
-export const getProjectPublicUrl = (fileName: string) =>
-  `${SUPABASE_URL}/storage/v1/object/public/${PROJECTS_BUCKET_NAME}/${encodeURIComponent(fileName)}`;
+// version には Storage の updated_at を渡す。同じファイル名で上書きしても
+// URL が変わるので、Supabase の CDN やブラウザの古いキャッシュを見なくなる
+export const getProjectPublicUrl = (fileName: string, version?: string) =>
+  `${SUPABASE_URL}/storage/v1/object/public/${PROJECTS_BUCKET_NAME}/${encodeURIComponent(fileName)}${
+    version ? `?v=${encodeURIComponent(version)}` : ""
+  }`;
 
 /* .mks ファイル(zip)まわりの、エディタと「あそぶ」ページで共通の処理。
    中身:  code/main.mjs ・ code/*.code(import で使うコードファイル) ・ texture/* ・ sound/*
@@ -213,10 +217,10 @@ export const parseMks = async (
 };
 
 // Supabase Storage から作品を取ってきて読み込む
-export const fetchProject = async (id: string) => {
+export const fetchProject = async (id: string, version?: string) => {
   // 一覧の id は通常拡張子なし。拡張子付きで渡されても二重に付けない。
   const fileName = /\.mks$/i.test(id) ? id : `${id}.mks`;
-  const res = await fetch(getProjectPublicUrl(fileName));
+  const res = await fetch(getProjectPublicUrl(fileName, version));
   if (!res.ok) {
     throw new Error(`作品の取得に失敗しました (${res.status})`);
   }

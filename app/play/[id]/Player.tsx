@@ -29,7 +29,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
   // 作品を読み込む。ページを離れるときは、ゲームも音も止める
   useEffect(() => {
     let alive = true;
-    fetchProject(project.id)
+    fetchProject(project.id, project.version)
       .then((p) => alive && setData({ code: p.code, assets: p.assets }))
       .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
 
