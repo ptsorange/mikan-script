@@ -355,6 +355,10 @@
   .ms-nav { gap: 12px; }
 }
 .ms-controls {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -362,6 +366,12 @@
 }
 /* ゲーム画面の枠: 最大 600 x 400(3:2)。狭い画面では、同じ比のまま小さくなる */
 .ms-screen {
+  /* スマホ: ピンチ拡大・ダブルタップ拡大・文字選択・長押しメニューを止める(ログや説明は選択できるまま) */
+  touch-action: pan-x pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   container-type: size; /* 中の iframe が cqw / cqh で、枠に収まる大きさを決める(Player.tsx) */
   position: relative;
   width: 100%;
@@ -750,3 +760,18 @@
   .ms-touch-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ms-touch-panel { width: min(360px, calc(100vw - 32px)); }
 }
+
+/* タッチ操作の設定パネル: ゲーム画面の外(画面のすぐ下)に、幅いっぱいで出す */
+.ms-touch-host:empty { display: none; }
+.ms-touch-host .ms-touch-panel {
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  box-shadow: none;
+  background: var(--ink);
+  touch-action: manipulation;
+}
+/* 閉じるボタン(赤)は、コピー・貼り付けの横。色は .ms-btn-red */
+.ms-touch-area { touch-action: none; }
+.ms-screen:fullscreen,
+.ms-screen.is-pseudo-fs { touch-action: none; }

@@ -1,9 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { listProjects } from "@/lib/projects";
 import SiteHeader from "@/app/_components/SiteHeader";
 import SiteFooter from "@/app/_components/SiteFooter";
 import Player from "./Player";
+
+// ゲームを遊ぶページは、ピンチ・ダブルタップでの拡大縮小をしない(操作ボタンやゲーム画面が動いてしまうため)
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export async function generateStaticParams() {
   // public/projects/ の作品すべて。1 件以上ないとビルドがエラーになるため、sample.mks は削除しないこと

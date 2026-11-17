@@ -25,6 +25,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
   const [error, setError] = useState("");
   const [started, setStarted] = useState(false);
   const { isFullscreen, pseudoFs, toggle: toggleFullscreen } = useFullscreen(stageRef);
+  const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null); // タッチ操作の設定パネルを出す場所(ゲーム画面の外)
   const [volume, setVolume] = useState("100");
   const [size, setSize] = useState({ w: 400, h: 300 }); // 作品の画面の大きさ(setScreenSize で変わる)
   const [fsBox, setFsBox] = useState<{ w: number; h: number } | null>(null); // 全画面での表示サイズ
@@ -82,6 +83,29 @@ export default function Player({ project }: { project: ProjectInfo }) {
       window.visualViewport?.removeEventListener("resize", fit);
     };
   }, [isFullscreen, started, size]);
+
+  // スマホで、ゲーム画面の上のピンチ拡大縮小・ダブルタップ拡大・テキスト選択が起きないようにする。
+  // (CSS の touch-action / user-select が効かない iOS Safari 用に、イベントでも止める)
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const stop = (e: Event) => e.preventDefault();
+    const stopMulti = (e: TouchEvent) => {
+      if (e.touches.length > 1) e.preventDefault();
+    };
+    stage.addEventListener("gesturestart", stop);
+    stage.addEventListener("gesturechange", stop);
+    stage.addEventListener("touchmove", stopMulti, { passive: false });
+    stage.addEventListener("selectstart", stop);
+    stage.addEventListener("contextmenu", stop);
+    return () => {
+      stage.removeEventListener("gesturestart", stop);
+      stage.removeEventListener("gesturechange", stop);
+      stage.removeEventListener("touchmove", stopMulti);
+      stage.removeEventListener("selectstart", stop);
+      stage.removeEventListener("contextmenu", stop);
+    };
+  }, []);
 
   const appendLog = (text: string) => {
     const el = logRef.current;
@@ -193,8 +217,14 @@ export default function Player({ project }: { project: ProjectInfo }) {
               defaultTouchControls={data ? data.touchControls : project.touchControls}
               stageRef={stageRef}
               frameRef={frameRef}
+              panelHost={panelHost}
+              isFullscreen={isFullscreen}
+              onExitFullscreen={toggleFullscreen}
             />
           </div>
+
+          {/* タッチ操作の設定パネルは、ゲーム画面に重ならないよう、ここ(画面のすぐ下)に出す */}
+          <div className="ms-touch-host" ref={setPanelHost} />
         </section>
 
         {/* 説明 */}

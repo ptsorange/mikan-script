@@ -39,6 +39,8 @@ export const SANDBOX_DOC = String.raw`<!doctype html>
   /* 親ページ(color-scheme: dark)に合わせる。合っていないと、iframe の背景が白くなる */
   html { color-scheme: dark; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #1d1f2e; }
+  /* スマホで、ピンチ拡大・ダブルタップ拡大・文字選択・長押しメニューが出ないようにする */
+  html, body, canvas { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   canvas { position: absolute; inset: 0; margin: auto; display: block; image-rendering: pixelated; outline: none; }
 </style>
 </head>

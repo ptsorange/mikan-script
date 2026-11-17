@@ -7,6 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 import type { GameFrameHandle } from "@/app/_components/GameFrame";
 import {
   actionLabel,
@@ -48,6 +49,11 @@ type Props = {
   defaultTouchControls?: TouchControlsConfig;
   stageRef: RefObject<HTMLDivElement | null>;
   frameRef: RefObject<GameFrameHandle | null>;
+  /** 設定パネルを出す場所(ゲーム画面の外)。なければ画面の上に重ねて出す */
+  panelHost?: HTMLElement | null;
+  /** いま全画面か(全画面の中にはパネルを出せないので、開くときに全画面を終える) */
+  isFullscreen?: boolean;
+  onExitFullscreen?: () => void;
 };
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
@@ -61,6 +67,9 @@ export default function TouchControls({
   defaultTouchControls,
   stageRef,
   frameRef,
+  panelHost,
+  isFullscreen = false,
+  onExitFullscreen,
 }: Props) {
   const [areas, setAreas] = useState<TouchArea[]>([]);
   const [touchEnabled, setTouchEnabled] = useState(true);
@@ -530,6 +539,7 @@ export default function TouchControls({
 
   const togglePanel = () => {
     if (!open) {
+      if (isFullscreen) onExitFullscreen?.(); // パネルはゲーム画面の外に出るので、全画面は終える
       releaseAll();
       setEditing(true);
     } else {
@@ -546,6 +556,177 @@ export default function TouchControls({
   };
 
   const hasProjectDefault = hasTouchControlsConfig(defaultTouchControls);
+
+  const panelNode = (
+    <section className="ms-touch-panel" aria-label="タッチ操作の設定" onPointerDown={(event) => event.stopPropagation()}>
+      <div className="ms-touch-panel-head">
+        <strong>タッチ操作</strong>
+        <div className="ms-touch-panel-status">
+          <label className="ms-touch-enable-toggle">
+            <input
+              type="checkbox"
+              checked={touchEnabled}
+              onChange={(event) => changeTouchEnabled(event.target.checked)}
+            />
+            タッチ操作を有効にする
+          </label>
+          <span>{areas.length}/{MAX_AREAS}</span>
+        </div>
+      </div>
+      <div className="ms-touch-panel-actions">
+        <button type="button" className="ms-btn ms-btn-green" onClick={addArea} disabled={areas.length >= MAX_AREAS}>
+          ＋ 当たり判定を追加
+        </button>
+        <div className="ms-touch-copy-paste">
+          <button type="button" className="ms-btn" onClick={copySelected} disabled={!selected}>
+            ⧉ コピー
+          </button>
+          <button type="button" className="ms-btn" onClick={pasteArea} disabled={!clipboardArea || areas.length >= MAX_AREAS}>
+            ▣ 貼り付け
+          </button>
+          <button type="button" className="ms-btn ms-btn-red ms-touch-close" aria-expanded={open} onClick={togglePanel}>
+            ✕ 操作設定を閉じる
+          </button>
+        </div>
+        {hasProjectDefault && (
+          <button
+            type="button"
+            className="ms-btn"
+            onClick={resetToProjectDefault}
+            disabled={!hasCustomSettings}
+          >
+            ↺ 作品のデフォルトに戻す
+          </button>
+        )}
+        <label className="ms-touch-edit-toggle">
+          <input
+            type="checkbox"
+            checked={editing}
+            onChange={(event) => {
+              setEditing(event.target.checked);
+              if (event.target.checked) releaseAll();
+            }}
+          />
+          配置を編集
+        </label>
+      </div>
+      <div className="ms-touch-presets">
+        <label className="ms-touch-preset-name">
+          共通設定の名前
+          <input value={presetName} maxLength={24} onChange={(event) => setPresetName(event.target.value)} placeholder="例: 横スクロール操作" />
+        </label>
+        <div className="ms-touch-preset-actions">
+          <button type="button" className="ms-btn ms-btn-blue" onClick={savePreset} disabled={!presetName.trim()}>
+            共通保存
+          </button>
+        </div>
+        <div className="ms-touch-preset-load">
+          <select value={selectedPresetId} onChange={(event) => setSelectedPresetId(event.target.value)} aria-label="保存済みの共通設定">
+            <option value="">保存した設定を選択…</option>
+            {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
+          </select>
+          <button type="button" className="ms-btn" onClick={loadPreset} disabled={!presets.some((preset) => preset.id === selectedPresetId)}>
+            ロード
+          </button>
+        </div>
+        <p className="ms-touch-hint">サンプル設定は最初から登録されています。選択して「ロード」すると、保存済み設定と同じように使えます。共通保存した設定も、このブラウザの別の作品でロードできます。</p>
+      </div>
+      {areas.length === 0 ? (
+        <p className="ms-touch-empty">「当たり判定を追加」からタッチボタンを作成できます。</p>
+      ) : (
+        <div className="ms-touch-editor">
+          <div className="ms-touch-list" aria-label="当たり判定一覧">
+            {areas.map((area) => (
+              <button
+                key={area.id}
+                type="button"
+                className={selectedId === area.id ? "is-active" : ""}
+                onClick={() => setSelectedId(area.id)}
+              >
+                <span>{area.label}</span>
+                <small>{actionLabel(area)}</small>
+              </button>
+            ))}
+          </div>
+          {selected && (
+            <div className="ms-touch-fields">
+              <label>
+                表示名
+                <input value={selected.label} maxLength={16} onChange={(event) => updateSelected({ label: event.target.value })} />
+              </label>
+              <label>
+                割り当て
+                <select
+                  value={selected.kind}
+                  onChange={(event) => updateSelected({ kind: event.target.value as TouchArea["kind"], value: event.target.value === "mouse" ? "left" : " " })}
+                >
+                  <option value="key">キーボード</option>
+                  <option value="mouse">マウス</option>
+                </select>
+              </label>
+              {selected.kind === "key" ? (
+                <label>
+                  キー
+                  <input
+                    value={keyLabel(selected.value)}
+                    maxLength={32}
+                    placeholder="例: Space / ArrowUp / z"
+                    onChange={(event) => updateSelected({ value: event.target.value === "Space" ? " " : event.target.value })}
+                  />
+                </label>
+              ) : (
+                <label>
+                  マウスボタン
+                  <select value={selected.value} onChange={(event) => updateSelected({ value: event.target.value })}>
+                    <option value="left">左クリック</option>
+                    <option value="middle">中クリック</option>
+                    <option value="right">右クリック</option>
+                  </select>
+                </label>
+              )}
+              <div className="ms-touch-numbers">
+                <label>X (%)<input type="number" min="0" max={100 - selected.w} value={Math.round(selected.x)} onChange={(event) => updateSelected({ x: Number(event.target.value) || 0 })} /></label>
+                <label>Y (%)<input type="number" min="0" max={100 - selected.h} value={Math.round(selected.y)} onChange={(event) => updateSelected({ y: Number(event.target.value) || 0 })} /></label>
+                <label>幅 (%)<input
+                  type="number" min="0" max="100" step="1"
+                  value={sizeDrafts?.id === selected.id ? sizeDrafts.w : String(Math.round(selected.w))}
+                  onChange={(event) => setSizeDrafts((draft) => ({
+                    id: selected.id,
+                    w: event.target.value,
+                    h: draft?.id === selected.id ? draft.h : String(Math.round(selected.h)),
+                  }))}
+                  onBlur={(event) => commitSize("w", event.currentTarget.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                /></label>
+                <label>高さ (%)<input
+                  type="number" min="0" max="100" step="1"
+                  value={sizeDrafts?.id === selected.id ? sizeDrafts.h : String(Math.round(selected.h))}
+                  onChange={(event) => setSizeDrafts((draft) => ({
+                    id: selected.id,
+                    w: draft?.id === selected.id ? draft.w : String(Math.round(selected.w)),
+                    h: event.target.value,
+                  }))}
+                  onBlur={(event) => commitSize("h", event.currentTarget.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                /></label>
+              </div>
+              <div className="ms-touch-appearance">
+                <label>ボタン色<input type="color" value={selected.color} onChange={(event) => updateSelected({ color: event.target.value })} /></label>
+                <label className="ms-touch-opacity">
+                  不透明度 ({selected.opacity}%)
+                  <input type="range" min="0" max="100" step="1" value={selected.opacity} onChange={(event) => updateSelected({ opacity: Number(event.target.value) })} />
+                </label>
+              </div>
+              <p className="ms-touch-hint">ボタンをドラッグして移動できます。押している間にボタン領域から指・ポインターが外れると解除され、別のボタンに移動すると切り替わります。</p>
+              <button type="button" className="ms-btn ms-btn-red ms-touch-delete" onClick={removeSelected}>
+                削除
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
 
   return (
     <>
@@ -578,184 +759,19 @@ export default function TouchControls({
           ))}
         </div>
       )}
-
-      <div className="ms-touch-controls">
-        <button
-          type="button"
-          className="ms-touch-toggle"
-          aria-expanded={open}
-          onClick={togglePanel}
-        >
-          {open ? "✕ 操作設定を閉じる" : "🎮 タッチ操作設定"}
-        </button>
-        {open && (
-          <section className="ms-touch-panel" aria-label="タッチ操作の設定" onPointerDown={(event) => event.stopPropagation()}>
-            <div className="ms-touch-panel-head">
-              <strong>タッチ操作</strong>
-              <div className="ms-touch-panel-status">
-                <label className="ms-touch-enable-toggle">
-                  <input
-                    type="checkbox"
-                    checked={touchEnabled}
-                    onChange={(event) => changeTouchEnabled(event.target.checked)}
-                  />
-                  タッチ操作を有効にする
-                </label>
-                <span>{areas.length}/{MAX_AREAS}</span>
-              </div>
-            </div>
-            <div className="ms-touch-panel-actions">
-              <button type="button" className="ms-btn ms-btn-green" onClick={addArea} disabled={areas.length >= MAX_AREAS}>
-                ＋ 当たり判定を追加
-              </button>
-              <div className="ms-touch-copy-paste">
-                <button type="button" className="ms-btn" onClick={copySelected} disabled={!selected}>
-                  ⧉ コピー
-                </button>
-                <button type="button" className="ms-btn" onClick={pasteArea} disabled={!clipboardArea || areas.length >= MAX_AREAS}>
-                  ▣ 貼り付け
-                </button>
-              </div>
-              {hasProjectDefault && (
-                <button
-                  type="button"
-                  className="ms-btn"
-                  onClick={resetToProjectDefault}
-                  disabled={!hasCustomSettings}
-                >
-                  ↺ 作品のデフォルトに戻す
-                </button>
-              )}
-              <label className="ms-touch-edit-toggle">
-                <input
-                  type="checkbox"
-                  checked={editing}
-                  onChange={(event) => {
-                    setEditing(event.target.checked);
-                    if (event.target.checked) releaseAll();
-                  }}
-                />
-                配置を編集
-              </label>
-            </div>
-            <div className="ms-touch-presets">
-              <label className="ms-touch-preset-name">
-                共通設定の名前
-                <input value={presetName} maxLength={24} onChange={(event) => setPresetName(event.target.value)} placeholder="例: 横スクロール操作" />
-              </label>
-              <div className="ms-touch-preset-actions">
-                <button type="button" className="ms-btn ms-btn-blue" onClick={savePreset} disabled={!presetName.trim()}>
-                  共通保存
-                </button>
-              </div>
-              <div className="ms-touch-preset-load">
-                <select value={selectedPresetId} onChange={(event) => setSelectedPresetId(event.target.value)} aria-label="保存済みの共通設定">
-                  <option value="">保存した設定を選択…</option>
-                  {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-                </select>
-                <button type="button" className="ms-btn" onClick={loadPreset} disabled={!presets.some((preset) => preset.id === selectedPresetId)}>
-                  ロード
-                </button>
-              </div>
-              <p className="ms-touch-hint">サンプル設定は最初から登録されています。選択して「ロード」すると、保存済み設定と同じように使えます。共通保存した設定も、このブラウザの別の作品でロードできます。</p>
-            </div>
-            {areas.length === 0 ? (
-              <p className="ms-touch-empty">「当たり判定を追加」からタッチボタンを作成できます。</p>
-            ) : (
-              <div className="ms-touch-editor">
-                <div className="ms-touch-list" aria-label="当たり判定一覧">
-                  {areas.map((area) => (
-                    <button
-                      key={area.id}
-                      type="button"
-                      className={selectedId === area.id ? "is-active" : ""}
-                      onClick={() => setSelectedId(area.id)}
-                    >
-                      <span>{area.label}</span>
-                      <small>{actionLabel(area)}</small>
-                    </button>
-                  ))}
-                </div>
-                {selected && (
-                  <div className="ms-touch-fields">
-                    <label>
-                      表示名
-                      <input value={selected.label} maxLength={16} onChange={(event) => updateSelected({ label: event.target.value })} />
-                    </label>
-                    <label>
-                      割り当て
-                      <select
-                        value={selected.kind}
-                        onChange={(event) => updateSelected({ kind: event.target.value as TouchArea["kind"], value: event.target.value === "mouse" ? "left" : " " })}
-                      >
-                        <option value="key">キーボード</option>
-                        <option value="mouse">マウス</option>
-                      </select>
-                    </label>
-                    {selected.kind === "key" ? (
-                      <label>
-                        キー
-                        <input
-                          value={keyLabel(selected.value)}
-                          maxLength={32}
-                          placeholder="例: Space / ArrowUp / z"
-                          onChange={(event) => updateSelected({ value: event.target.value === "Space" ? " " : event.target.value })}
-                        />
-                      </label>
-                    ) : (
-                      <label>
-                        マウスボタン
-                        <select value={selected.value} onChange={(event) => updateSelected({ value: event.target.value })}>
-                          <option value="left">左クリック</option>
-                          <option value="middle">中クリック</option>
-                          <option value="right">右クリック</option>
-                        </select>
-                      </label>
-                    )}
-                    <div className="ms-touch-numbers">
-                      <label>X (%)<input type="number" min="0" max={100 - selected.w} value={Math.round(selected.x)} onChange={(event) => updateSelected({ x: Number(event.target.value) || 0 })} /></label>
-                      <label>Y (%)<input type="number" min="0" max={100 - selected.h} value={Math.round(selected.y)} onChange={(event) => updateSelected({ y: Number(event.target.value) || 0 })} /></label>
-                      <label>幅 (%)<input
-                        type="number" min="0" max="100" step="1"
-                        value={sizeDrafts?.id === selected.id ? sizeDrafts.w : String(Math.round(selected.w))}
-                        onChange={(event) => setSizeDrafts((draft) => ({
-                          id: selected.id,
-                          w: event.target.value,
-                          h: draft?.id === selected.id ? draft.h : String(Math.round(selected.h)),
-                        }))}
-                        onBlur={(event) => commitSize("w", event.currentTarget.value)}
-                        onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-                      /></label>
-                      <label>高さ (%)<input
-                        type="number" min="0" max="100" step="1"
-                        value={sizeDrafts?.id === selected.id ? sizeDrafts.h : String(Math.round(selected.h))}
-                        onChange={(event) => setSizeDrafts((draft) => ({
-                          id: selected.id,
-                          w: draft?.id === selected.id ? draft.w : String(Math.round(selected.w)),
-                          h: event.target.value,
-                        }))}
-                        onBlur={(event) => commitSize("h", event.currentTarget.value)}
-                        onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-                      /></label>
-                    </div>
-                    <div className="ms-touch-appearance">
-                      <label>ボタン色<input type="color" value={selected.color} onChange={(event) => updateSelected({ color: event.target.value })} /></label>
-                      <label className="ms-touch-opacity">
-                        不透明度 ({selected.opacity}%)
-                        <input type="range" min="0" max="100" step="1" value={selected.opacity} onChange={(event) => updateSelected({ opacity: Number(event.target.value) })} />
-                      </label>
-                    </div>
-                    <p className="ms-touch-hint">ボタンをドラッグして移動できます。押している間にボタン領域から指・ポインターが外れると解除され、別のボタンに移動すると切り替わります。</p>
-                    <button type="button" className="ms-btn ms-btn-red ms-touch-delete" onClick={removeSelected}>
-                      削除
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-      </div>
+      {!open && (
+        <div className="ms-touch-controls">
+          <button
+            type="button"
+            className="ms-touch-toggle"
+            aria-expanded={open}
+            onClick={togglePanel}
+          >
+            🎮 タッチ操作設定
+          </button>
+        </div>
+      )}
+      {open && (panelHost ? createPortal(panelNode, panelHost) : panelNode)}
     </>
   );
 }
