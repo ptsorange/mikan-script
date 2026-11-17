@@ -25,6 +25,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
   const [error, setError] = useState("");
   const [started, setStarted] = useState(false);
   const { isFullscreen, pseudoFs, toggle: toggleFullscreen } = useFullscreen(stageRef);
+  const [toggleHost, setToggleHost] = useState<HTMLSpanElement | null>(null); // 「タッチ操作設定」ボタンを置く場所(スタートや音量と同じ並び)
   const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null); // タッチ操作の設定パネルを出す場所(ゲーム画面の外)
   const [volume, setVolume] = useState("100");
   const [size, setSize] = useState({ w: 400, h: 300 }); // 作品の画面の大きさ(setScreenSize で変わる)
@@ -148,6 +149,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
       <button className="ms-btn" onClick={(e) => { toggleFullscreen(); e.currentTarget.blur(); }}>
         {isFullscreen ? "🗗 全画面を終了" : "⛶ 全画面"}
       </button>
+      <span className="ms-controls-slot" ref={setToggleHost} />
       <input type="range" value={volume} onChange={handleVolumeChange} min="0" max="100" step="1"/>
     </div>
   );
@@ -218,6 +220,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
               stageRef={stageRef}
               frameRef={frameRef}
               panelHost={panelHost}
+              toggleHost={toggleHost}
               isFullscreen={isFullscreen}
               onExitFullscreen={toggleFullscreen}
             />

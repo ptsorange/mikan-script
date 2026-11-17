@@ -775,3 +775,16 @@
 .ms-touch-area { touch-action: none; }
 .ms-screen:fullscreen,
 .ms-screen.is-pseudo-fs { touch-action: none; }
+
+/* 「タッチ操作設定」ボタン: スタート・停止・全画面・音量と同じ並びに置く(見た目は .ms-btn) */
+.ms-controls-slot { display: contents; }
+.ms-controls .ms-touch-toggle.is-inline {
+  min-height: 0;
+  padding: 7px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font: 700 14px var(--ui);
+  backdrop-filter: none;
+}
+.ms-controls .ms-touch-toggle.is-inline.is-open { background: var(--blue, #2d6bd6); }
