@@ -6,6 +6,7 @@ import { fetchProject, type Asset } from "@/lib/mks";
 import type { ProjectInfo } from "@/lib/projects";
 import type { TouchControlsConfig } from "@/lib/touchControls";
 import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
+import { useFullscreen } from "@/app/_components/useFullscreen";
 import TouchControls from "./TouchControls";
 
 const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないように、古い分から捨てる
@@ -23,7 +24,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
   const [data, setData] = useState<{ code: string; assets: Asset[]; touchControls?: TouchControlsConfig } | null>(null);
   const [error, setError] = useState("");
   const [started, setStarted] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isFullscreen, pseudoFs, toggle: toggleFullscreen } = useFullscreen(stageRef);
   const [volume, setVolume] = useState("100");
   const [size, setSize] = useState({ w: 400, h: 300 }); // 作品の画面の大きさ(setScreenSize で変わる)
   const [fsBox, setFsBox] = useState<{ w: number; h: number } | null>(null); // 全画面での表示サイズ
@@ -35,11 +36,8 @@ export default function Player({ project }: { project: ProjectInfo }) {
       .then((p) => alive && setData({ code: p.code, assets: p.assets, touchControls: p.meta.touchControls }))
       .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
 
-    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onFs);
     return () => {
       alive = false;
-      document.removeEventListener("fullscreenchange", onFs);
       // ゲームと音は、iframe がページと一緒に消えるので止まる
     };
   }, [project.id]);
@@ -72,8 +70,18 @@ export default function Player({ project }: { project: ProjectInfo }) {
     };
     const ro = new ResizeObserver(fit); // observe した直後にも 1 回呼ばれる
     ro.observe(stage);
-    return () => ro.disconnect();
-  }, [isFullscreen, size]);
+    // スタート後にコントロールバーが現れても高さが変わるので、バーの大きさも見る
+    const bar = stage.querySelector<HTMLElement>(".ms-controls");
+    if (bar) ro.observe(bar);
+    // スマホはアドレスバーの出し入れや回転で表示領域が変わる
+    window.addEventListener("resize", fit);
+    window.visualViewport?.addEventListener("resize", fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", fit);
+      window.visualViewport?.removeEventListener("resize", fit);
+    };
+  }, [isFullscreen, started, size]);
 
   const appendLog = (text: string) => {
     const el = logRef.current;
@@ -91,14 +99,6 @@ export default function Player({ project }: { project: ProjectInfo }) {
     frameRef.current?.run(data.code, data.assets, Number(volume));
   };
 
-  const toggleFullscreen = async () => {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await stageRef.current?.requestFullscreen();
-    } catch {
-      /* フルスクリーンにできないときは何もしない */
-    }
-  };
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVol = e.target.value;
     setVolume(newVol);
@@ -147,7 +147,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
         <section className="ms-stage" aria-label="ゲーム画面">
           {!isFullscreen && controls}
 
-          <div className="ms-screen" ref={stageRef}>
+          <div className={`ms-screen${pseudoFs ? " is-pseudo-fs" : ""}`} ref={stageRef}>
             {isFullscreen && started && controls}
             <GameFrame
               ref={frameRef}

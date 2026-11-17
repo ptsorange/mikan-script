@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, type ChangeEvent, type Ref } from "react";
+import { useImperativeHandle, useRef, useState, type ChangeEvent, type Ref } from "react";
 import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
+import { useFullscreen } from "@/app/_components/useFullscreen";
 import type { Asset } from "@/lib/mks";
 
 const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないように、古い分から捨てる
@@ -67,11 +68,11 @@ function Controls({ fullscreen, volume, onRun, onStop, onToggleFullscreen, onVol
 }
 
 // 右側: 作品が動く画面とログ
-export default function Stage({ ref, onRun, onNotice }: Props) {
+export default function Stage({ ref, onRun }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<GameFrameHandle>(null); // 作品を動かす iframe(隔離された画面)
   const logRef = useRef<HTMLPreElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isFullscreen, pseudoFs, toggle: toggleFullscreen } = useFullscreen(stageRef);
   const [volume, setVolume] = useState("100");
 
   useImperativeHandle(
@@ -82,23 +83,6 @@ export default function Stage({ ref, onRun, onNotice }: Props) {
     }),
     [volume]
   );
-
-  useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
-
-  const toggleFullscreen = async () => {
-    const el = stageRef.current;
-    if (!el) return;
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await el.requestFullscreen();
-    } catch {
-      onNotice("フルスクリーンにできなかったよ。");
-    }
-  };
 
   // 動いているゲームの音量を、すぐに変える(iframe の中に postMessage で伝える)
   const handleVolumeChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -135,13 +119,13 @@ export default function Stage({ ref, onRun, onNotice }: Props) {
     <section className="kc-stage" aria-label="ステージ">
       {controls(false)}
 
-      <div className="kc-screen" ref={stageRef}>
+      <div className={`kc-screen${pseudoFs ? " is-pseudo-fs" : ""}`} ref={stageRef}>
         {isFullscreen ? controls(true) : null}
         <GameFrame
           ref={frameRef}
           className="kc-canvas"
           // 全画面では、CSS(.kc-screen:fullscreen .kc-canvas)で高さいっぱいに広げる
-          style={isFullscreen ? { width: "auto", height: "100%" } : undefined}
+          style={isFullscreen ? { width: "auto", height: "auto" } : undefined}
           onLog={appendLog}
           onClearLog={clearLog}
         />

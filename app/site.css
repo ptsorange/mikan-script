@@ -426,31 +426,55 @@
 .ms-error { margin: 0; color: #ff8a8a; }
 
 /* フルスクリーン: 黒い背景の中央に、比を保ったまま拡大して表示する。
-   canvas の大きさは Player.tsx が計算して指定する(1 倍以上は整数倍にして、ピクセルをくっきり出す) */
-.ms-screen:fullscreen {
+   canvas の大きさは Player.tsx が計算して指定する(1 倍以上は整数倍にして、ピクセルをくっきり出す)。
+   .is-pseudo-fs は、iPhone など Fullscreen API が使えないときの疑似全画面(画面いっぱいに固定表示)。
+   コントロールバーは上に固定し、canvas は残りの場所の中央に置く(整数倍の余りが上に溜まらないように) */
+.ms-screen:fullscreen,
+.ms-screen.is-pseudo-fs {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 16px;
-  width: 100vw;
+  width: 100%;
   max-width: none;
-  height: 100vh;
+  height: 100%;
   aspect-ratio: auto;
+  margin: 0;
   padding: 16px;
   border-radius: 0;
   background: #000;
   box-shadow: none;
 }
-.ms-screen:fullscreen .ms-canvas {
+.ms-screen.is-pseudo-fs {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100vh;   /* dvh 非対応ブラウザ用 */
+  height: 100dvh;  /* スマホのアドレスバーを除いた、いま見えている高さ */
+  padding:
+    max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  overscroll-behavior: contain;
+}
+.ms-screen:fullscreen .ms-canvas,
+.ms-screen.is-pseudo-fs .ms-canvas {
   position: static;
   inset: auto;
   flex: none;
   max-width: none;
   max-height: none;
-  margin: 0;
+  margin: auto; /* バーの下の残りの場所で、縦横とも中央 */
 }
-.ms-screen:fullscreen .ms-controls { margin-right: auto; }
+.ms-screen:fullscreen .ms-controls,
+.ms-screen.is-pseudo-fs .ms-controls {
+  align-self: flex-start;
+  margin-right: auto;
+}
+.ms-screen:fullscreen::backdrop { background: #000; }
 
 @media (max-width: 760px) {
   .ms-play-grid { grid-template-columns: minmax(0, 1fr); }
@@ -539,7 +563,6 @@
   font: 700 12px/1.25 var(--ui);
   text-align: center;
   text-shadow: 0 1px 2px #000;
-  touch-action: none;
   user-select: none;
   pointer-events: auto;
   cursor: pointer;
