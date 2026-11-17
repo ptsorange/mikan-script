@@ -1,5 +1,5 @@
 import { useEffect, type ChangeEvent } from "react";
-import { buildMks, parseMks, fetchProject, EMPTY_META, type Asset, type Meta } from "@/lib/mks";
+import { buildMks, parseMks, fetchProject, toMeta, type Asset, type Meta } from "@/lib/mks";
 import {
   CODE_KEY,
   META_KEY,
@@ -35,7 +35,7 @@ export function useProjectIO(p: Params) {
     p.setInputCode(savedCode ?? SAMPLE_CODE);
     try {
       const m = JSON.parse(localStorage.getItem(META_KEY) ?? "null");
-      if (m) p.setMeta({ ...EMPTY_META, ...m });
+      if (m) p.setMeta(toMeta(m));
       p.setThumbnail(localStorage.getItem(THUMB_KEY));
     } catch {
       /* 壊れたデータは無視する */

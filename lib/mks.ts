@@ -1,5 +1,10 @@
 import JSZip from "jszip";
 import { splitCode, compile, RUNTIME, type ModuleSources } from "@/lib/lang";
+import {
+  hasTouchControlsConfig,
+  sanitizeTouchControls,
+  type TouchControlsConfig,
+} from "@/lib/touchControls";
 
 // 公開プロジェクトを保存している Supabase Storage
 export const PROJECTS_BUCKET_NAME = "mikanScriptProjects";
@@ -96,7 +101,12 @@ export const toModuleSources = (assets: Asset[]): ModuleSources =>
 
 /* ---------- 作品の情報(config.json)とサムネイル(thumbnail.png) ---------- */
 
-export type Meta = { title: string; author: string; description: string };
+export type Meta = {
+  title: string;
+  author: string;
+  description: string;
+  touchControls?: TouchControlsConfig;
+};
 export const EMPTY_META: Meta = { title: "", author: "", description: "" };
 
 export const CONFIG_NAME = "config.json";
@@ -115,10 +125,25 @@ const THUMBNAIL_NAMES = [
 export const toMeta = (raw: unknown): Meta => {
   const r = (raw ?? {}) as Record<string, unknown>;
   const s = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+  const touchControls = sanitizeTouchControls(r.touchControls);
   return {
     title: s(r.title, 60),
     author: s(r.author, 40),
     description: s(r.description, 200),
+    ...(touchControls ? { touchControls } : {}),
+  };
+};
+
+export const hasConfigMeta = (meta: Meta): boolean =>
+  Boolean(meta.title || meta.author || meta.description || hasTouchControlsConfig(meta.touchControls));
+
+export const serializeMeta = (meta: Meta): Meta => {
+  const touchControls = sanitizeTouchControls(meta.touchControls);
+  return {
+    title: meta.title,
+    author: meta.author,
+    description: meta.description,
+    ...(touchControls ? { touchControls } : {}),
   };
 };
 
@@ -175,8 +200,8 @@ export const buildMks = async (
 ): Promise<Blob> => {
   const zip = new JSZip();
   zip.file("code/main.mjs", code);
-  if (meta.title || meta.author || meta.description) {
-    zip.file(CONFIG_NAME, JSON.stringify(meta, null, 2));
+  if (hasConfigMeta(meta)) {
+    zip.file(CONFIG_NAME, JSON.stringify(serializeMeta(meta), null, 2));
   }
   if (thumbnail) {
     zip.file(THUMBNAIL_NAME, thumbnail.slice(thumbnail.indexOf(",") + 1), { base64: true });

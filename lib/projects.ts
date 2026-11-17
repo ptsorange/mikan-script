@@ -7,6 +7,7 @@ import {
   PROJECTS_BUCKET_NAME,
   SUPABASE_URL,
 } from "@/lib/mks";
+import type { TouchControlsConfig } from "@/lib/touchControls";
 import { createClient } from "@supabase/supabase-js";
 
 export type ProjectInfo = {
@@ -16,6 +17,7 @@ export type ProjectInfo = {
   description: string;
   hasThumbnail: boolean;
   version: string; // Storage 上の更新日時(キャッシュ回避用)
+  touchControls?: TouchControlsConfig;
 };
 
 const supabase = createClient(
@@ -38,6 +40,7 @@ const readInfo = async (fileName: string, version: string): Promise<ProjectInfo>
     info.author = config.author;
     info.description = config.description;
     info.hasThumbnail = findThumbnail(zip) !== null;
+    if (config.touchControls) info.touchControls = config.touchControls;
   } catch {
     /* 壊れたファイルでも、一覧には名前だけ出す */
   }

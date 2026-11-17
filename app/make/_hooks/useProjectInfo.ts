@@ -14,10 +14,17 @@ export function useProjectInfo({ setNotice, capture }: Params) {
   const [meta, setMeta] = useState<Meta>(EMPTY_META);
   const [thumbnail, setThumbnail] = useState<string | null>(null);
 
-  const onMetaChange = (key: keyof Meta, value: string) => {
-    const next = { ...meta, [key]: value };
-    setMeta(next);
-    localStorage.setItem(META_KEY, JSON.stringify(next));
+  const onMetaChange = <K extends keyof Meta>(key: K, value: Meta[K]) => {
+    setMeta((prev) => {
+      const next = { ...prev, [key]: value };
+      if (next.touchControls === undefined) delete next.touchControls;
+      try {
+        localStorage.setItem(META_KEY, JSON.stringify(next));
+      } catch {
+        setNotice("作品の情報を保存できませんでした。");
+      }
+      return next;
+    });
   };
 
   // サムネイルは localStorage に入れる(小さくしてあるので入る。入らなかったら画面だけ)

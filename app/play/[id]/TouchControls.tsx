@@ -8,25 +8,27 @@ import {
   type RefObject,
 } from "react";
 import type { GameFrameHandle } from "@/app/_components/GameFrame";
+import {
+  actionLabel,
+  BUILTIN_PRESETS,
+  BUILTIN_PRESET_IDS,
+  colorWithOpacity,
+  createTouchAreaId,
+  DEFAULT_BUTTON_COLOR,
+  hasTouchControlsConfig,
+  keyLabel,
+  MAX_AREAS,
+  normalizeKey,
+  PRESETS_STORAGE_KEY,
+  resolveTouchControlsState,
+  sanitizeAreas,
+  withBuiltinPresets,
+  type MouseButton,
+  type TouchArea,
+  type TouchControlsConfig,
+  type TouchPreset,
+} from "@/lib/touchControls";
 
-type MouseButton = "left" | "middle" | "right";
-type TouchArea = {
-  id: string;
-  label: string;
-  kind: "key" | "mouse";
-  value: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  opacity: number;
-  color: string;
-};
-type TouchPreset = {
-  id: string;
-  name: string;
-  areas: TouchArea[];
-};
 type HeldAction = { token: string; kind: TouchArea["kind"]; value: string };
 type PointerState = { tokens: Set<string> };
 type DragState = {
@@ -43,120 +45,27 @@ type Props = {
   projectId: string;
   started: boolean;
   layoutKey: string;
+  defaultTouchControls?: TouchControlsConfig;
   stageRef: RefObject<HTMLDivElement | null>;
   frameRef: RefObject<GameFrameHandle | null>;
 };
 
-const MOUSE_BUTTONS: MouseButton[] = ["left", "middle", "right"];
-const MAX_AREAS = 12;
-const MOUSE_LABELS: Record<MouseButton, string> = {
-  left: "左クリック",
-  middle: "中クリック",
-  right: "右クリック",
-};
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
-const normalizeKey = (key: string) => key === "Space" || key.toLowerCase() === "space" ? " " : key;
-const keyLabel = (key: string) => normalizeKey(key) === " " ? "Space" : key;
-const mouseLabel = (button: string) => MOUSE_LABELS[button as MouseButton] ?? button;
-const actionLabel = (area: TouchArea) => area.kind === "key"
-  ? `キー: ${keyLabel(area.value)}`
-  : `マウス: ${mouseLabel(area.value)}`;
 const storageKey = (id: string) => `mikan-script-touch-controls:${id}`;
 const enabledStorageKey = (id: string) => `mikan-script-touch-controls-enabled:${id}`;
-const PRESETS_STORAGE_KEY = "mikan-script-touch-control-presets:v1";
-const DEFAULT_BUTTON_COLOR = "#2d6bd6";
-const SAMPLE_AREAS: Omit<TouchArea, "id">[] = [
-  { label: "←", kind: "key", value: "ArrowLeft", x: 4, y: 78, w: 15, h: 18, opacity: 82, color: "#2563eb" },
-  { label: "→", kind: "key", value: "ArrowRight", x: 21, y: 78, w: 15, h: 18, opacity: 82, color: "#2563eb" },
-  { label: "JUMP", kind: "key", value: " ", x: 80, y: 78, w: 17, h: 18, opacity: 86, color: "#16a34a" },
-  { label: "ATTACK", kind: "key", value: "z", x: 80, y: 58, w: 17, h: 18, opacity: 86, color: "#dc2626" },
-  { label: "CLICK", kind: "mouse", value: "left", x: 60, y: 80, w: 17, h: 16, opacity: 78, color: "#7c3aed" },
-];
 
-// 初回から通常の保存済みプリセットと同じ一覧に表示する組み込みサンプル。
-const BUILTIN_PRESETS: TouchPreset[] = [{
-  id: "builtin-side-scroller-v1",
-  name: "サンプル：横スクロールアクション",
-  areas: SAMPLE_AREAS.map((area, index) => ({ ...area, id: `builtin-side-scroller-${index + 1}` })),
-}];
-const BUILTIN_PRESET_IDS = new Set(BUILTIN_PRESETS.map((preset) => preset.id));
-
-const isHexColor = (value: unknown): value is string =>
-  typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
-
-// 不透明度はボタン背景だけに適用し、ラベルや操作名の文字は不透明のままにする。
-function colorWithOpacity(hex: string, opacity: number): string {
-  const value = Number.parseInt(hex.slice(1), 16);
-  const red = (value >> 16) & 255;
-  const green = (value >> 8) & 255;
-  const blue = value & 255;
-  return `rgba(${red}, ${green}, ${blue}, ${clamp(opacity, 0, 1)})`;
-}
-
-function sanitizeAreas(value: unknown): TouchArea[] {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, MAX_AREAS).flatMap((item): TouchArea[] => {
-    if (!item || typeof item !== "object") return [];
-    const area = item as Partial<TouchArea>;
-    if (
-      typeof area.id !== "string" ||
-      typeof area.label !== "string" ||
-      (area.kind !== "key" && area.kind !== "mouse") ||
-      typeof area.value !== "string"
-    ) return [];
-
-    const x = Number(area.x);
-    const y = Number(area.y);
-    const w = Number(area.w);
-    const h = Number(area.h);
-    if (![x, y, w, h].every(Number.isFinite)) return [];
-
-    const safeW = clamp(w, 0, 100);
-    const safeH = clamp(h, 0, 100);
-    const opacity = Number(area.opacity);
-    const valueForAction = area.kind === "mouse"
-      ? (MOUSE_BUTTONS.includes(area.value as MouseButton) ? area.value : "left")
-      : (area.value.slice(0, 32) || " ");
-
-    return [{
-      id: area.id.slice(0, 80),
-      label: area.label.slice(0, 16),
-      kind: area.kind,
-      value: valueForAction,
-      x: clamp(x, 0, 100 - safeW),
-      y: clamp(y, 0, 100 - safeH),
-      w: safeW,
-      h: safeH,
-      opacity: Number.isFinite(opacity) ? clamp(opacity, 0, 100) : 58,
-      color: isHexColor((area as Partial<TouchArea>).color) ? (area as TouchArea).color : DEFAULT_BUTTON_COLOR,
-    }];
-  });
-}
-
-function sanitizePresets(value: unknown): TouchPreset[] {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 20).flatMap((item): TouchPreset[] => {
-    if (!item || typeof item !== "object") return [];
-    const preset = item as Partial<TouchPreset>;
-    if (typeof preset.id !== "string" || typeof preset.name !== "string" || !Array.isArray(preset.areas)) return [];
-    return [{
-      id: preset.id.slice(0, 80),
-      name: preset.name.trim().slice(0, 24) || "プリセット",
-      areas: sanitizeAreas(preset.areas),
-    }];
-  });
-}
-
-function withBuiltinPresets(value: unknown): TouchPreset[] {
-  const custom = sanitizePresets(value).filter((preset) => !BUILTIN_PRESET_IDS.has(preset.id));
-  // 組み込みサンプルを常に先頭に置き、ユーザー保存分は最大19件にする。
-  return [...BUILTIN_PRESETS, ...custom].slice(0, 20);
-}
-
-export default function TouchControls({ projectId, started, layoutKey, stageRef, frameRef }: Props) {
+export default function TouchControls({
+  projectId,
+  started,
+  layoutKey,
+  defaultTouchControls,
+  stageRef,
+  frameRef,
+}: Props) {
   const [areas, setAreas] = useState<TouchArea[]>([]);
   const [touchEnabled, setTouchEnabled] = useState(true);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [hasCustomSettings, setHasCustomSettings] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [clipboardArea, setClipboardArea] = useState<TouchArea | null>(null);
   const [open, setOpen] = useState(false);
@@ -168,25 +77,47 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
   const [selectedPresetId, setSelectedPresetId] = useState(BUILTIN_PRESETS[0].id);
   const [sizeDrafts, setSizeDrafts] = useState<{ id: string; w: string; h: string } | null>(null);
 
-  // プロジェクトごとに、このブラウザへ設定を保存する。
+  const areasDirtyRef = useRef(false);
+  const prevProjectIdRef = useRef<string | null>(null);
+
+  // プロジェクトごとに、このブラウザへ設定を保存する。保存値がなければ作品のデフォルト設定を使う。
   useEffect(() => {
+    const projectChanged = prevProjectIdRef.current !== projectId;
+    prevProjectIdRef.current = projectId;
     setLoadedFor(null);
+
+    let storedAreasRaw: string | null = null;
+    let storedEnabledRaw: string | null = null;
     try {
-      const raw = localStorage.getItem(storageKey(projectId));
-      setAreas(raw ? sanitizeAreas(JSON.parse(raw)) : []);
+      storedAreasRaw = localStorage.getItem(storageKey(projectId));
+      storedEnabledRaw = localStorage.getItem(enabledStorageKey(projectId));
     } catch {
-      setAreas([]);
+      storedAreasRaw = null;
+      storedEnabledRaw = null;
     }
-    try {
-      const enabledRaw = localStorage.getItem(enabledStorageKey(projectId));
-      // 既存プロジェクトは従来どおり有効。明示的に false を保存した場合だけ無効にする。
-      setTouchEnabled(enabledRaw !== "false");
-    } catch {
-      setTouchEnabled(true);
+
+    const resolved = resolveTouchControlsState({
+      storedAreasRaw,
+      storedEnabledRaw,
+      defaultConfig: defaultTouchControls,
+    });
+
+    if (projectChanged) {
+      areasDirtyRef.current = resolved.hasCustomAreas;
+      setAreas(resolved.areas);
+      setTouchEnabled(resolved.enabled);
+      setHasCustomSettings(resolved.hasCustomAreas || resolved.hasCustomEnabled);
+      setSelectedId(null);
+    } else {
+      if (storedAreasRaw === null && !areasDirtyRef.current) {
+        setAreas(resolved.areas);
+      }
+      if (storedEnabledRaw === null) {
+        setTouchEnabled(resolved.enabled);
+      }
     }
-    setSelectedId(null);
     setLoadedFor(projectId);
-  }, [projectId]);
+  }, [projectId, defaultTouchControls]);
 
   useEffect(() => {
     try {
@@ -209,24 +140,14 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
   }, [presets, presetsLoaded]);
 
   useEffect(() => {
-    // 別プロジェクトの古い state を、新しいプロジェクトの設定として保存しない。
-    if (loadedFor !== projectId) return;
+    // 別プロジェクトの古い state や未変更のデフォルト値を、カスタム設定として保存しない。
+    if (loadedFor !== projectId || !areasDirtyRef.current) return;
     try {
       localStorage.setItem(storageKey(projectId), JSON.stringify(areas));
     } catch {
       // ストレージが使えない環境でもゲーム自体は操作できる。
     }
   }, [areas, loadedFor, projectId]);
-
-  useEffect(() => {
-    // 有効／無効は作品ごとに独立して保存する。
-    if (loadedFor !== projectId) return;
-    try {
-      localStorage.setItem(enabledStorageKey(projectId), String(touchEnabled));
-    } catch {
-      // 保存できなくても現在の画面では切り替えを反映する。
-    }
-  }, [touchEnabled, loadedFor, projectId]);
 
   useEffect(() => {
     if (areas.length === 0) setSelectedId(null);
@@ -308,6 +229,30 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
   const changeTouchEnabled = (enabled: boolean) => {
     if (!enabled) releaseAll();
     setTouchEnabled(enabled);
+    setHasCustomSettings(true);
+    try {
+      localStorage.setItem(enabledStorageKey(projectId), String(enabled));
+    } catch {
+      // 保存できなくても現在の画面では切り替えを反映する。
+    }
+  };
+
+  const resetToProjectDefault = () => {
+    if (!defaultTouchControls) return;
+    releaseAll();
+    dragRef.current = null;
+    areasDirtyRef.current = false;
+    try {
+      localStorage.removeItem(storageKey(projectId));
+      localStorage.removeItem(enabledStorageKey(projectId));
+    } catch {
+      // ignore
+    }
+    const nextAreas = sanitizeAreas(defaultTouchControls.areas);
+    setAreas(nextAreas);
+    setTouchEnabled(defaultTouchControls.enabled);
+    setSelectedId(nextAreas[0]?.id ?? null);
+    setHasCustomSettings(false);
   };
 
   // 押しているポインターが現在どのボタン上にあるかを毎回調べる。
@@ -401,7 +346,13 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
     };
   }, [frameRef, layoutKey, stageRef]);
 
+  const markAreasDirty = () => {
+    areasDirtyRef.current = true;
+    setHasCustomSettings(true);
+  };
+
   const updateArea = (id: string, patch: Partial<TouchArea>) => {
+    markAreasDirty();
     setAreas((current) => current.map((area) => {
       if (area.id !== id) return area;
       const next = { ...area, ...patch };
@@ -418,10 +369,9 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
     updateArea(selected.id, patch);
   };
 
-  const createAreaId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
   const applyAreas = (nextAreas: TouchArea[]) => {
     releaseAll();
+    markAreasDirty();
     setAreas(nextAreas.slice(0, MAX_AREAS));
     setSelectedId(nextAreas[0]?.id ?? null);
     setOpen(true);
@@ -432,7 +382,7 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
     const name = presetName.trim().slice(0, 24);
     if (!name) return;
     const preset: TouchPreset = {
-      id: createAreaId(),
+      id: createTouchAreaId(),
       name,
       areas: areas.map((area) => ({ ...area })),
     };
@@ -448,7 +398,7 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
   const loadPreset = () => {
     const preset = presets.find((item) => item.id === selectedPresetId);
     if (!preset) return;
-    const nextAreas = sanitizeAreas(preset.areas).slice(0, MAX_AREAS).map((area) => ({ ...area, id: createAreaId() }));
+    const nextAreas = sanitizeAreas(preset.areas).slice(0, MAX_AREAS).map((area) => ({ ...area, id: createTouchAreaId() }));
     applyAreas(nextAreas);
   };
 
@@ -466,8 +416,9 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
   const addArea = () => {
     if (areas.length >= MAX_AREAS) return;
     releaseAll();
+    markAreasDirty();
     const next: TouchArea = {
-      id: createAreaId(),
+      id: createTouchAreaId(),
       label: `ボタン ${areas.length + 1}`,
       kind: "key",
       value: " ",
@@ -492,9 +443,10 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
   const pasteArea = () => {
     if (!clipboardArea || areas.length >= MAX_AREAS) return;
     releaseAll();
+    markAreasDirty();
     const next: TouchArea = {
       ...clipboardArea,
-      id: createAreaId(),
+      id: createTouchAreaId(),
       label: `${clipboardArea.label} コピー`.slice(0, 16),
       x: clamp(clipboardArea.x + 4, 0, 100 - clipboardArea.w),
       y: clamp(clipboardArea.y + 4, 0, 100 - clipboardArea.h),
@@ -509,6 +461,7 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
     if (!selected) return;
     releaseAll();
     dragRef.current = null;
+    markAreasDirty();
     setAreas((current) => current.filter((area) => area.id !== selected.id));
   };
 
@@ -592,6 +545,8 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
     height: viewport.height,
   };
 
+  const hasProjectDefault = hasTouchControlsConfig(defaultTouchControls);
+
   return (
     <>
       {((started && touchEnabled) || (open && editing)) && areas.length > 0 && viewport.width > 0 && (
@@ -661,6 +616,16 @@ export default function TouchControls({ projectId, started, layoutKey, stageRef,
                   ▣ 貼り付け
                 </button>
               </div>
+              {hasProjectDefault && (
+                <button
+                  type="button"
+                  className="ms-btn"
+                  onClick={resetToProjectDefault}
+                  disabled={!hasCustomSettings}
+                >
+                  ↺ 作品のデフォルトに戻す
+                </button>
+              )}
               <label className="ms-touch-edit-toggle">
                 <input
                   type="checkbox"

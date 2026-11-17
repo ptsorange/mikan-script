@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent } from "react";
-import { KINDS, KIND_LIST, type Asset, type Kind, type Meta } from "@/lib/mks";
+import { hasConfigMeta, KINDS, KIND_LIST, type Asset, type Kind, type Meta } from "@/lib/mks";
 import type { Panel } from "./panels";
 import { assetBytes, fmtSize } from "./utils";
 
@@ -24,7 +24,7 @@ type Props = {
 export default function ExplorerPanel(p: Props) {
   const { assets, byKind, meta, thumbnail, codeBytes, closed } = p;
   const total = codeBytes + assets.reduce((sum, a) => sum + assetBytes(a), 0);
-  const hasConfig = !!(meta.title || meta.author || meta.description);
+  const hasConfig = hasConfigMeta(meta);
   const rootFiles = (hasConfig ? 1 : 0) + (thumbnail ? 1 : 0);
   const fileCount = 1 + assets.length + rootFiles; // main.mjs + 素材とコードファイル + config / thumbnail
 

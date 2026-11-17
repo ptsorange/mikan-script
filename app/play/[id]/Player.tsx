@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { fetchProject, type Asset } from "@/lib/mks";
 import type { ProjectInfo } from "@/lib/projects";
+import type { TouchControlsConfig } from "@/lib/touchControls";
 import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
 import TouchControls from "./TouchControls";
 
@@ -19,7 +20,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
   const startRef = useRef<HTMLButtonElement>(null);
   const frameRef = useRef<GameFrameHandle>(null);
   const logRef = useRef<HTMLPreElement>(null);
-  const [data, setData] = useState<{ code: string; assets: Asset[] } | null>(null);
+  const [data, setData] = useState<{ code: string; assets: Asset[]; touchControls?: TouchControlsConfig } | null>(null);
   const [error, setError] = useState("");
   const [started, setStarted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -31,7 +32,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
   useEffect(() => {
     let alive = true;
     fetchProject(project.id, project.version)
-      .then((p) => alive && setData({ code: p.code, assets: p.assets }))
+      .then((p) => alive && setData({ code: p.code, assets: p.assets, touchControls: p.meta.touchControls }))
       .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
 
     const onFs = () => setIsFullscreen(!!document.fullscreenElement);
@@ -189,6 +190,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
               projectId={project.id}
               started={started}
               layoutKey={`${size.w}:${size.h}:${isFullscreen}:${fsBox?.w ?? 0}:${fsBox?.h ?? 0}`}
+              defaultTouchControls={data ? data.touchControls : project.touchControls}
               stageRef={stageRef}
               frameRef={frameRef}
             />

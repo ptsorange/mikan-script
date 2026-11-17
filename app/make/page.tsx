@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import { dataUrlToText, KINDS } from "@/lib/mks";
 import "./editor.css";
 import { useCode } from "./_hooks/useCode";
@@ -160,9 +160,7 @@ export default function Editor() {
 
       <div
         className={`kc-body${panel ? "" : " is-collapsed"}`}
-        style={{
-          gridTemplateColumns: `48px ${panel ? sidebarWidth : 0}px minmax(0, 1fr) minmax(320px, 440px)`,
-        }}
+        style={{ "--sidebar-w": `${sidebarWidth}px` } as CSSProperties}
       >
         <ActivityBar panel={panel} onSelect={clickActivity} />
 
@@ -190,6 +188,7 @@ export default function Editor() {
               thumbnail={thumbnail}
               onMetaChange={onMetaChange}
               onCapture={captureThumbnail}
+              onCapturePreview={() => stageRef.current?.capture()}
               onPick={onPickThumbnail}
               onClear={() => saveThumbnail(null)}
             />

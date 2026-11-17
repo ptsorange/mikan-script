@@ -11,7 +11,7 @@ export const PANELS: { id: Panel; label: string }[] = [
   { id: "code", label: "コードファイル(import で使う)" },
   { id: "texture", label: "テクスチャ" },
   { id: "sound", label: "サウンド" },
-  { id: "info", label: "作品の情報(タイトル・説明・サムネ)" },
+  { id: "info", label: "作品の情報(タイトル・説明・サムネ・タッチ操作)" },
 ];
 
 const svgProps = {
