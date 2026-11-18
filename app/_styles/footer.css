@@ -1,0 +1,26 @@
+/* ---------- フッター ---------- */
+.ms-footer {
+  border-top: 1px solid var(--line);
+  background: #181a27;
+  color: var(--muted);
+  font-size: 13px;
+}
+.ms-footer-inner {
+  flex-wrap: wrap;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+.ms-footer-copy { margin: 0; }
+.ms-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.ms-footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.ms-footer a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}

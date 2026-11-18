@@ -1,0 +1,92 @@
+/* ブロックの定義: 基本(スタートしたら・キー・ずっと・繰り返す・待つ・表示・スクリーンサイズ・ランダム) */
+
+export const BASIC_BLOCKS: Record<string, unknown>[] = [
+  {
+    type: "mk_on_start",
+    message0: "スタートしたら %1 %2",
+    args0: [{ type: "input_dummy" }, { type: "input_statement", name: "DO" }],
+    style: "mk_event",
+  },
+  {
+    type: "mk_on_key",
+    message0: "キーを %1 とき %2 %3",
+    args0: [
+      {
+        type: "field_dropdown",
+        name: "EVENT",
+        options: [
+          ["押した", "onKeyDown"],
+          ["離した", "onKeyUp"],
+        ],
+      },
+      { type: "input_dummy" },
+      { type: "input_statement", name: "DO" },
+    ],
+    style: "mk_event",
+  },
+  {
+    type: "mk_while",
+    message0: "ずっと %1 の間 %2 %3",
+    args0: [{ type: "input_value", name: "COND" }, { type: "input_dummy" }, { type: "input_statement", name: "DO" }],
+    previousStatement: null,
+    nextStatement: null,
+    style: "mk_control",
+  },
+  {
+    type: "mk_for",
+    message0: "%1 を使って %2 回繰り返す %3 %4",
+    args0: [
+      { type: "field_input", name: "VAR", text: "i" },
+      { type: "input_value", name: "COUNT" },
+      { type: "input_dummy" },
+      { type: "input_statement", name: "DO" },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    style: "mk_control",
+  },
+  {
+    type: "mk_sleep",
+    message0: "%1 ミリ秒待つ",
+    args0: [{ type: "input_value", name: "MS" }],
+    previousStatement: null,
+    nextStatement: null,
+    style: "mk_control",
+  },
+  {
+    type: "mk_print",
+    message0: "表示 %1",
+    args0: [{ type: "input_value", name: "VALUE" }],
+    previousStatement: null,
+    nextStatement: null,
+    style: "mk_looks",
+  },
+  {
+    type: "mk_text",
+    message0: "\"%1\"",
+    args0: [{ type: "field_input", name: "TEXT", text: "こんにちは" }],
+    output: null,
+    style: "mk_text",
+  },
+  {
+    type: "mk_screen_size",
+    message0: "スクリーンサイズ 幅 %1 高さ %2",
+    args0: [
+      { type: "input_value", name: "W" },
+      { type: "input_value", name: "H" },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    style: "mk_func",
+  },
+  {
+    type: "mk_random",
+    message0: "ランダム %1 から %2",
+    args0: [
+      { type: "input_value", name: "FROM" },
+      { type: "input_value", name: "TO" },
+    ],
+    output: "Number",
+    style: "mk_num",
+  },
+];

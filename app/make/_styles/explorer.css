@@ -1,0 +1,214 @@
+/* ---------- 左: エクスプローラー(texture / sound) ---------- */
+.kc-explorer.is-closed {
+  visibility: hidden;
+  padding: 0;
+  overflow: hidden;
+  border-right: 0;
+}
+.kc-explorer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 10px;
+  overflow: auto;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+.kc-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 5px;
+  height: 100%;
+  cursor: ew-resize; /* 左右矢印カーソル */
+  background: transparent;
+  z-index: 10;
+}
+
+.kc-resizer:hover {
+  background: rgba(255, 140, 0, 0.4); /* ホバー時に分かりやすく色を付ける */
+}
+.kc-side-title {
+  margin: 0 4px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.kc-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font: 13px var(--mono);
+  color: var(--yellow);
+  cursor: pointer;
+  user-select: none;
+}
+.kc-folder:hover { background: var(--panel-2); }
+.kc-folder:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.kc-chev {
+  width: 1.2ch;
+  color: var(--muted);
+}
+.kc-folder-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+.kc-files {
+  margin: 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+}
+/* フォルダの下ではない、ふつうの一覧はインデントしない */
+.kc-files.kc-flat { padding-left: 0; }
+.kc-file {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+}
+.kc-file:hover,
+.kc-file:focus-within { background: var(--panel-2); }
+.kc-file-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: 13px var(--mono);
+  text-align: left;
+  cursor: pointer;
+}
+.kc-file-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kc-thumb {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: repeating-conic-gradient(#fff 0 25%, #d8dbe8 0 50%) 0 0 / 10px 10px;
+}
+.kc-icon-btn {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.kc-icon-btn:hover { background: var(--line); color: var(--text); }
+@media (hover: hover) {
+  .kc-icon-btn { opacity: 0; }
+  .kc-file:hover .kc-icon-btn,
+  .kc-file:focus-within .kc-icon-btn { opacity: 1; }
+}
+.kc-rename {
+  flex: 1;
+  min-width: 0;
+  margin: 2px;
+  padding: 4px 6px;
+  border: 1px solid var(--blue);
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--text);
+  font: 13px var(--mono);
+  outline: 0;
+}
+.kc-empty,
+.kc-tip {
+  margin: 4px 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.kc-tip code {
+  display: block;
+  margin-top: 4px;
+  color: var(--cyan);
+  font: 12px var(--mono);
+  word-break: break-all;
+}
+.kc-add {
+  display: block;
+  margin: 8px 4px 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.28);
+}
+.kc-add:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28); }
+.kc-add-sound { background: var(--purple); }
+.kc-add-code { background: #d9890b; }
+.kc-add-alt { background: transparent; color: var(--orange); box-shadow: inset 0 0 0 2px #d9890b; }
+.kc-file.is-active { background: var(--panel-2); border-radius: 6px; }
+
+/* 音ファイルのアイコン(画像のサムネイルの代わり) */
+.kc-snd-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  background: rgba(133, 92, 214, 0.28);
+  font-size: 14px;
+}
+.kc-ico-code {
+  background: rgba(255, 171, 25, 0.22);
+  color: var(--orange);
+  font: 700 11px var(--mono);
+}
+/* エクスプローラーのファイルサイズ */
+.kc-file-main .kc-size {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+/* ボタンの「書き出し」を、画像を追加のボタンと同じ見た目にする */
+button.kc-add {
+  width: calc(100% - 8px);
+  border: 0;
+  font: 700 14px var(--ui);
+}
+/* 試し聞きをしているあいだは ■ を出しっぱなしにする */
+.kc-icon-btn.is-on {
+  opacity: 1;
+  color: #7be685;
+}
+.kc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.kc-notice {
+  margin: 4px 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(236, 89, 89, 0.18);
+  color: #ffb4b4;
+  font-size: 12px;
+  line-height: 1.5;
+}

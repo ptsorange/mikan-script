@@ -1,0 +1,25 @@
+/* ---------- 404 ---------- */
+.ms-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+.ms-404 {
+  margin: 0;
+  color: var(--yellow);
+  font: 700 clamp(64px, 18vw, 120px) / 1 var(--mono);
+}
+.ms-center h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.ms-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+}

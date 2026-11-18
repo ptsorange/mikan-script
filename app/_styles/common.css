@@ -1,0 +1,25 @@
+/* ---------- 共通 ---------- */
+.ms-main {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 20px 48px;
+}
+.ms-muted { margin: 0; color: var(--muted); }
+
+/* 長い文字を枠の中でおさめる: 1 行は ... で省略、複数行は行数で切って ... にする */
+.ms-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ms-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lines, 2);
+  line-clamp: var(--lines, 2);
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}

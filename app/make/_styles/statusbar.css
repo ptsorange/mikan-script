@@ -1,0 +1,10 @@
+/* ---------- 下のステータスバー ---------- */
+.kc-status {
+  display: flex;
+  gap: 18px;
+  padding: 3px 14px;
+  background: #2d6bd6;
+  color: #fff;
+  font-size: 12px;
+}
+.kc-status span:last-child { margin-left: auto; }

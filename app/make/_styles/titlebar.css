@@ -1,0 +1,112 @@
+/* ---------- 上のバー ---------- */
+/* VS Code のタイトルバー: 左にアイコン、まん中にファイル名、右にヒント */
+.kc-top {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 12px;
+  height: 34px;
+  padding: 0 12px;
+  background: #181a27;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.kc-top .kc-btn {
+  padding: 3px 12px;
+  font-size: 12px;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.12);
+}
+.kc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.kc-field input,
+.kc-field textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0f1119;
+  color: var(--text);
+  font: 13px var(--ui);
+  resize: vertical;
+}
+.kc-field input::placeholder,
+.kc-field textarea::placeholder { color: var(--muted); }
+.kc-field input:focus-visible,
+.kc-field textarea:focus-visible { outline: 2px solid var(--purple); }
+.kc-count { align-self: flex-end; font-size: 11px; }
+.kc-thumb-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0f1119;
+}
+.kc-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.kc-logo {
+  justify-self: start;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--purple);
+  color: #fff;
+  font: 700 12px var(--mono);
+}
+.kc-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kc-hint {
+  justify-self: end;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ゲーム画面の上の ▶ ■ */
+.kc-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  font: 700 14px var(--ui);
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.28);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.kc-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
+}
+.kc-btn:focus-visible,
+.kc-add:focus-within,
+.kc-file-main:focus-visible,
+.kc-icon-btn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.kc-run { background: var(--green); }
+.kc-stop { background: var(--red); }

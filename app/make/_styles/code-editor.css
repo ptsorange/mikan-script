@@ -1,0 +1,155 @@
+/* ---------- 中: エディタ ---------- */
+.kc-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.kc-tabs {
+  display: flex;
+  background: var(--panel);
+}
+.kc-tabs { overflow-x: auto; }
+.kc-tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 0;
+  border-top: 3px solid transparent;
+  background: var(--panel);
+  color: var(--muted);
+  font: 13px var(--mono);
+}
+.kc-tab.is-active {
+  border-top-color: var(--orange);
+  background: var(--ink);
+  color: var(--text);
+}
+.kc-tab-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 8px 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.kc-tab-close {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.kc-tab-close:hover { background: var(--line); color: var(--text); }
+.kc-tab:not(.is-active) .kc-dot { background: var(--muted); }
+.kc-tool {
+  align-self: center;
+  margin: 0 10px 0 auto;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.kc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--orange);
+}
+.kc-code {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.kc-gutter {
+  padding: 12px 10px 40px 16px;
+  overflow: hidden;
+  color: #5d6485;
+  font: 15px/24px var(--mono);
+  text-align: right;
+  white-space: pre;
+  user-select: none;
+}
+.kc-gutter-in,
+.kc-hl-in { display: block; will-change: transform; }
+.kc-area { position: relative; min-width: 0; }
+.kc-hl,
+.kc-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 12px 14px 40px;
+  border: 0;
+  font: 15px/24px var(--mono);
+  font-variant-ligatures: none;
+  letter-spacing: 0;
+  white-space: pre;
+  tab-size: 2;
+}
+.kc-hl {
+  overflow: hidden;
+  color: var(--text);
+  pointer-events: none;
+}
+.kc-input {
+  overflow: auto;
+  resize: none;
+  outline: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: #fff;
+}
+.kc-input::selection { background: rgba(76, 151, 255, 0.4); }
+
+/* 入力候補 */
+.kc-suggest {
+  position: absolute;
+  z-index: 5;
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 240px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font: 13px/18px var(--mono);
+}
+.kc-suggest li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.kc-suggest li.is-on { background: rgba(76, 151, 255, 0.3); }
+.kc-sg-kind { flex: none; width: 8px; height: 8px; border-radius: 2px; }
+.k-kw { background: var(--orange); }
+.k-fn { background: var(--cyan); }
+.k-var { background: #ee93ee; }
+.k-member { background: #b896ff; }
+.k-file { background: #86d98b; }
+.kc-sg-detail { margin-left: auto; padding-left: 12px; color: #8a91b4; font-size: 12px; }
+
+/* 色分け: ブロックの種類ごとに Scratch の色 */
+.tk-cm { color: #6f7699; font-style: italic; }
+.tk-st { color: #86d98b; }
+.tk-nu { color: #7db6ff; }
+.tk-ev { color: var(--yellow); background: rgba(255, 191, 0, 0.16); border-radius: 4px; }
+.tk-ct { color: var(--orange); background: rgba(255, 171, 25, 0.16); border-radius: 4px; }
+.tk-lk { color: #b896ff; background: rgba(153, 102, 255, 0.2); border-radius: 4px; }
+.tk-vr { color: #ee93ee; background: rgba(207, 99, 207, 0.18); border-radius: 4px; }
+.tk-mt { color: var(--cyan); background: rgba(89, 192, 224, 0.16); border-radius: 4px; }
+.tk-pn { color: #3fe0b5; background: rgba(15, 189, 140, 0.18); border-radius: 4px; }

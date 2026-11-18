@@ -1,0 +1,26 @@
+/* ---------- スクロールバー ---------- */
+.ms-app ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.ms-app ::-webkit-scrollbar-track,
+.ms-app ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.ms-app ::-webkit-scrollbar-thumb {
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background: #4a5075;
+  background-clip: content-box;
+}
+.ms-app ::-webkit-scrollbar-thumb:hover {
+  background: #5a628f;
+  background-clip: content-box;
+}
+/* Firefox など */
+@supports not selector(::-webkit-scrollbar) {
+  .ms-app * {
+    scrollbar-width: thin;
+    scrollbar-color: #4a5075 transparent;
+  }
+}

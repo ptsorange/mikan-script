@@ -3,8 +3,7 @@
 import { useEffect, useRef } from "react";
 import * as Blockly from "blockly";
 import "blockly/msg/ja";
-import { defineMikanBlocks, TOOLBOX } from "@/lib/blocks";
-import { mikanTheme } from "@/lib/blockTheme";
+import { defineMikanBlocks, mikanTheme, TOOLBOX } from "@/lib/blocks";
 
 type Props = {
   /** サイドバーのブロックが押されたときに呼ばれる(コードにしてエディタに入れるのは呼ぶ側の仕事) */

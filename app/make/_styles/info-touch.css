@@ -1,0 +1,65 @@
+/* ---------- 作品情報: タッチ操作デフォルト設定 ---------- */
+.kc-field select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0f1119;
+  color: var(--text);
+  font: 13px var(--ui);
+}
+.kc-field select:focus-visible { outline: 2px solid var(--purple); }
+.kc-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.kc-btn-blue { background: var(--blue); }
+.kc-btn-muted { background: rgba(255, 255, 255, 0.14); }
+
+.kc-touch-info-section {
+  margin-top: 14px;
+  margin-bottom: 4px;
+}
+.kc-touch-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0f1119;
+}
+.kc-touch-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.kc-touch-check input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+.kc-touch-summary-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.kc-touch-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.kc-touch-tag {
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  font: 600 11px var(--mono);
+}

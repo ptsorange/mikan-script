@@ -1,0 +1,13 @@
+.ms-app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 100dvh;
+  background: var(--ink);
+  color: var(--text);
+  font-size: 14px;
+}
+.ms-app *,
+.ms-app *::before,
+.ms-app *::after {
+  box-sizing: border-box;
+}

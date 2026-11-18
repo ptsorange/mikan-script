@@ -1,11 +1,11 @@
 import * as Blockly from "blockly";
 
 /* ---------- ブロックの見た目(エディタに合わせる) ----------
-   色は app/make/editor.css の変数・コードの色分け(.tk-*)と同じ。
+   色は app/make/_styles/base.css の変数・コードの色分け(.tk-*)と同じ。
    エディタは「暗い地に、色つきの文字・うすい色のかたまり」なので、
    ブロックも「暗い地に、うすく色をのせた面 + はっきりした色の枠」にする。 */
 
-// editor.css の --panel / --ink / --panel-2 / --line / --text と同じ
+// _styles/base.css の --panel / --ink / --panel-2 / --line / --text と同じ
 const PANEL = "#252839";
 const INK = "#1d1f2e";
 const LINE = "#3a3f5a";
@@ -42,7 +42,7 @@ export const mikanTheme = Blockly.Theme.defineTheme("mikan", {
   name: "mikan",
   startHats: true, // 「スタートしたら」などの先頭のブロックに、帽子の形をつける
   blockStyles: {
-    // このアプリ専用のブロック(lib/blocks.ts)
+    // このアプリ専用のブロック(lib/blocks/definitions)
     mk_event: style(COLOR.event),
     mk_control: style(COLOR.control),
     mk_looks: style(COLOR.looks),
@@ -69,7 +69,7 @@ export const mikanTheme = Blockly.Theme.defineTheme("mikan", {
     markerColour: COLOR.event,
     cursorColour: COLOR.event,
   },
-  // editor.css の --ui と同じ
+  // _styles/base.css の --ui と同じ
   fontStyle: {
     family: 'system-ui, "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif',
     weight: "600",

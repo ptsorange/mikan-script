@@ -1,0 +1,31 @@
+/* ---------- 右: ステージ ---------- */
+.kc-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+.kc-canvas {
+  image-rendering: pixelated; /* 縮小・拡大でも、ピクセルをぼかさない */
+  align-self: flex-start;
+  max-width: 100%;
+  height: auto;
+  border: 3px solid var(--line);
+  border-radius: 10px;
+  background: var(--ink);
+}
+.kc-log {
+  min-height: 110px;
+  max-height: 220px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--ink);
+  font: 13px/1.6 var(--mono);
+  white-space: pre-wrap;
+}

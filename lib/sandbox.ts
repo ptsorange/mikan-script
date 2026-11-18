@@ -167,7 +167,7 @@ export const SANDBOX_DOC = String.raw`<!doctype html>
     if (action === "down") virtualButtons[id] = true;
     else delete virtualButtons[id];
 
-    // 現在の lang.ts は pointerup で「押下」、pointerdown で「解放」を記録するため、
+    // 現在の lib/lang(runtime)は pointerup で「押下」、pointerdown で「解放」を記録するため、
     // 仮想入力ではその順序を反転して、ゲーム側には通常の押下状態を見せる。
     var eventType = action === "down" ? "pointerup" : "pointerdown";
     var EventType = window.PointerEvent || window.MouseEvent;

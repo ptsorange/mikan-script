@@ -1,0 +1,35 @@
+.kc-app {
+  --ink: #1d1f2e;
+  --panel: #252839;
+  --panel-2: #2f3349;
+  --line: #3a3f5a;
+  --text: #e8eaf6;
+  --muted: #9aa0be;
+
+  /* 色 */
+  --purple: #855cd6;
+  --blue: #2d6bd6;
+  --green: #218a2a;
+  --red: #c63333;
+  --yellow: #ffbf00;
+  --orange: #ffab19;
+  --pink: #cf63cf;
+  --cyan: #59c0e0;
+
+  --ui: system-ui, "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+  --mono: "Cascadia Code", "Cascadia Mono", "SF Mono", Menlo, Consolas,
+    "BIZ UDGothic", "Noto Sans Mono CJK JP", "Yu Gothic", monospace;
+
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100dvh;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 14px;
+}
+.kc-app *,
+.kc-app *::before,
+.kc-app *::after {
+  box-sizing: border-box;
+}

@@ -1,0 +1,5 @@
+@media (prefers-reduced-motion: reduce) {
+  .ms-btn,
+  .ms-card,
+  .ms-play-btn { transition: none; }
+}

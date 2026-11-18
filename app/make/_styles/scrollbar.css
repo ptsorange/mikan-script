@@ -1,0 +1,26 @@
+/* ---------- スクロールバー ---------- */
+.kc-app ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.kc-app ::-webkit-scrollbar-track,
+.kc-app ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.kc-app ::-webkit-scrollbar-thumb {
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background: #4a5075;
+  background-clip: content-box;
+}
+.kc-app ::-webkit-scrollbar-thumb:hover {
+  background: var(--blue);
+  background-clip: content-box;
+}
+/* Firefox など */
+@supports not selector(::-webkit-scrollbar) {
+  .kc-app * {
+    scrollbar-width: thin;
+    scrollbar-color: #4a5075 transparent;
+  }
+}
