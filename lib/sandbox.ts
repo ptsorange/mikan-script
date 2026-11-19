@@ -81,12 +81,23 @@ export const SANDBOX_DOC = String.raw`<!doctype html>
 
   var errPrefix = "エラー: ";
   var unknownErr = "不明なエラー";
-  var logError = function (msg) { post({ type: "log", text: errPrefix + msg + "\n" }); };
-  window.addEventListener("error", function (e) { logError(e.message || unknownErr); });
+  var logError = function (msg, loc) {
+    post({
+      type: "log",
+      level: "error",
+      text: String(msg || unknownErr),
+      file: loc && loc.file ? String(loc.file) : undefined,
+      line: loc && typeof loc.line === "number" ? loc.line : undefined
+    });
+  };
+  window.addEventListener("error", function (e) {
+    var loc = e && e.error && e.error.__msLoc;
+    logError(e.message || unknownErr, loc);
+  });
   window.addEventListener("unhandledrejection", function (e) {
     var r = e.reason;
     var msg = r && r.message !== undefined ? r.message : String(r);
-    if (msg !== "stopped") logError(msg);
+    if (msg !== "stopped") logError(msg, r && r.__msLoc);
     e.preventDefault();
   });
 

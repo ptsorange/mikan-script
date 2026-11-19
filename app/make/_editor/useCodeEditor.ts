@@ -41,6 +41,7 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
   // 色分け表示・行番号の「中身」。入力欄のスクロール量だけ transform で動かして重ねる
   const hlRef = useRef<HTMLSpanElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
+  const errBandsRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
 
   const [suggest, setSuggestState] = useState<Suggest | null>(null);
@@ -61,6 +62,7 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     if (!ta) return;
     if (hlRef.current) hlRef.current.style.transform = `translate(${-ta.scrollLeft}px, ${-ta.scrollTop}px)`;
     if (gutterRef.current) gutterRef.current.style.transform = `translateY(${-ta.scrollTop}px)`;
+    if (errBandsRef.current) errBandsRef.current.style.transform = `translateY(${-ta.scrollTop}px)`;
   };
 
   // 文字を入れたあと・大きさが変わったあとも合わせなおす
@@ -80,6 +82,27 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     if (!ta) return;
     const lines = ta.value.slice(0, ta.selectionStart).split("\n");
     setCursor({ line: lines.length, col: lines[lines.length - 1].length + 1 });
+  };
+
+  // 指定した行へスクロール＆カーソル移動する(エラー行へのジャンプ用)
+  const jumpToLine = (lineNumber: number) => {
+    requestAnimationFrame(() => {
+      const ta = editorRef.current;
+      if (!ta) return;
+      const lines = ta.value.split("\n");
+      const targetLine = Math.max(1, Math.min(lines.length, lineNumber));
+      let start = 0;
+      for (let i = 0; i < targetLine - 1; i++) {
+        start += lines[i].length + 1;
+      }
+      const end = start + (lines[targetLine - 1]?.length ?? 0);
+      ta.focus();
+      ta.setSelectionRange(start, end);
+      const lh = parseFloat(getComputedStyle(ta).lineHeight) || 24;
+      ta.scrollTop = Math.max(0, (targetLine - 1) * lh - ta.clientHeight / 2 + lh / 2);
+      syncScroll();
+      updateCursor();
+    });
   };
 
   // カーソルの位置(選んでいる文字は置きかえ)に文字を入れる
@@ -280,11 +303,13 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     editorRef,
     hlRef,
     gutterRef,
+    errBandsRef,
     cursor,
     suggest,
     closeSuggest: () => setSuggest(null),
     syncScroll,
     updateCursor,
+    jumpToLine,
     replaceSelection,
     insertBlock,
     acceptSuggest,

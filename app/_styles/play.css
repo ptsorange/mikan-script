@@ -118,16 +118,106 @@
   background: var(--ink);
   image-rendering: pixelated;
 }
+.ms-log-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ms-log-head h2 {
+  margin: 0;
+}
+.ms-log-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(240, 100, 100, 0.2);
+  border: 1px solid rgba(240, 100, 100, 0.5);
+  color: #ff9c9c;
+  font: 600 11px/1.5 var(--ui);
+}
+.ms-log-clear {
+  margin-left: auto;
+  padding: 2px 10px;
+  font-size: 11px;
+}
+.ms-log-clear:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .ms-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-height: 3rem;
-  max-height: 220px;
+  max-height: 240px;
   margin: 0;
   padding: 10px 12px;
   overflow: auto;
   border-radius: 8px;
   background: var(--ink);
   font: 13px/1.6 var(--mono);
+}
+.ms-log-info {
+  margin: 0;
+  font: inherit;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ms-log-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-family: var(--ui);
+}
+.ms-log-entry.is-error {
+  background: rgba(198, 51, 51, 0.16);
+  border-left: 3px solid #f06464;
+}
+.ms-log-entry.is-warn {
+  background: rgba(255, 171, 25, 0.12);
+  border-left: 3px solid var(--orange);
+}
+.ms-log-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ms-log-badge {
+  padding: 0 6px;
+  border-radius: 4px;
+  font: 700 10px/1.6 var(--ui);
+  letter-spacing: 0.02em;
+}
+.ms-log-badge.is-error {
+  background: #c63333;
+  color: #fff;
+}
+.ms-log-badge.is-warn {
+  background: var(--orange);
+  color: #1d1f2e;
+}
+.ms-log-loc {
+  padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffd38a;
+  font: 11px/1.6 var(--mono);
+}
+.ms-log-msg {
+  margin: 0;
+  color: var(--text);
+  font: 12.5px/1.5 var(--ui);
+  overflow-wrap: anywhere;
+}
+.ms-log-detail {
+  margin: 0;
+  color: var(--muted);
+  font: 11px/1.4 var(--mono);
+  overflow-wrap: anywhere;
 }
 
 /* スタート画面: ゲーム画面の上に重ねる。サムネがあれば、薄く背景に敷く */

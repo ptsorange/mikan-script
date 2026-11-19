@@ -11,7 +11,7 @@ import { useProjectInfo } from "./_hooks/useProjectInfo";
 import { useProjectIO } from "./_hooks/useProjectIO";
 import { useSidebarResize } from "./_hooks/useSidebarResize";
 import { useCodeEditor } from "./_editor/useCodeEditor";
-import CodeEditor, { type EditorTab } from "./_editor/CodeEditor";
+import CodeEditor, { type EditorError, type EditorTab } from "./_editor/CodeEditor";
 import Stage, { type StageHandle } from "./_stage/Stage";
 import TopBar from "./_components/TopBar";
 import StatusBar from "./_components/StatusBar";
@@ -44,6 +44,7 @@ export default function Editor() {
   const { previewName, stopPreview, togglePreview } = useSoundPreview(setNotice);
   const [tabs, setTabs] = useState<string[]>([MAIN_TAB]); // エディタで開いているファイル
   const [activeTab, setActiveTab] = useState(MAIN_TAB);
+  const [codeErrors, setCodeErrors] = useState<Record<string, EditorError[]>>({});
   // コードファイルの名前を変えたら、開いているタブも追いかける
   const onRenamed = useCallback((from: string, to: string) => {
     setTabs((t) => t.map((x) => (x === from ? to : x)));
@@ -87,6 +88,7 @@ export default function Editor() {
   // 実行のたびに iframe を作りなおすので、前の実行と音は全部消える
   const runCode = () => {
     stopPreview();
+    setCodeErrors({});
     stageRef.current?.run(inputCode, assets);
   };
 
@@ -114,12 +116,48 @@ export default function Editor() {
     if (activeTab === id) setActiveTab(MAIN_TAB);
   };
 
+  const activeFileKey = activeAsset ? activeAsset.name : "main.code";
+
+  const clearErrorsForFile = useCallback((fileKey: string) => {
+    setCodeErrors((prev) => {
+      if (!(fileKey in prev)) return prev;
+      const next = { ...prev };
+      delete next[fileKey];
+      return next;
+    });
+  }, []);
+
+  const handleStageError = useCallback((err: { file?: string; line?: number; message: string }) => {
+    if (!err.line) return;
+    const key = err.file || "main.code";
+    const entry: EditorError = { line: err.line, message: err.message };
+    setCodeErrors((prev) => {
+      const list = prev[key] ?? [];
+      if (list.some((x) => x.line === entry.line && x.message === entry.message)) return prev;
+      return { ...prev, [key]: [...list, entry] };
+    });
+  }, []);
+
   const editor = useCodeEditor({
     code: editorCode,
-    onCodeChange: (v) => (activeAsset ? updateText(activeAsset.name, v) : updateCode(v)),
+    onCodeChange: (v) => {
+      clearErrorsForFile(activeFileKey);
+      if (activeAsset) updateText(activeAsset.name, v);
+      else updateCode(v);
+    },
     assets,
     onRun: runCode,
   });
+
+  const jumpToLocation = (file: string, line: number) => {
+    if (file === "main.code") {
+      openFile(null);
+      editor.jumpToLine(line);
+    } else if (assets.some((a) => a.name === file)) {
+      openFile(file);
+      editor.jumpToLine(line);
+    }
+  };
 
   // 新しいコードファイルを作って、エディタで開く(名前はそのまま変えられる)
   const createCodeFile = async () => {
@@ -247,10 +285,18 @@ export default function Editor() {
           editor={editor}
           tabs={editorTabs}
           activeTab={shownTab}
+          errors={codeErrors[activeFileKey]}
+          onDismissErrors={() => clearErrorsForFile(activeFileKey)}
           onSelectTab={setActiveTab}
           onCloseTab={closeTab}
         />
-        <Stage ref={stageRef} onRun={runCode} onNotice={setNotice} />
+        <Stage
+          ref={stageRef}
+          onRun={runCode}
+          onNotice={setNotice}
+          onError={handleStageError}
+          onJumpToLocation={jumpToLocation}
+        />
       </div>
 
       <StatusBar

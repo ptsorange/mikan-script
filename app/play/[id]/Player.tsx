@@ -1,16 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { fetchProject, type Asset } from "@/lib/mks";
 import type { ProjectInfo } from "@/lib/projects";
 import type { TouchControlsConfig } from "@/lib/touchControls";
-import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
+import GameFrame, { type GameFrameHandle, type LogEntryInput, type LogLevel } from "@/app/_components/GameFrame";
 import { useLocale } from "@/app/_components/LocaleProvider";
 import { useFullscreen } from "@/app/_components/useFullscreen";
 import TouchControls from "./TouchControls";
 
 const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないように、古い分から捨てる
+const MAX_LOG_ITEMS = 300;
+
+type PlayLogItem = {
+  id: number;
+  level: LogLevel;
+  text: string;
+  detail?: string;
+  file?: string;
+  line?: number;
+};
 
 /* レイアウト:
      タイトル
@@ -22,10 +32,12 @@ export default function Player({ project }: { project: ProjectInfo }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<HTMLButtonElement>(null);
   const frameRef = useRef<GameFrameHandle>(null);
-  const logRef = useRef<HTMLPreElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const nextLogId = useRef(1);
   const [data, setData] = useState<{ code: string; assets: Asset[]; touchControls?: TouchControlsConfig } | null>(null);
   const [error, setError] = useState("");
   const [started, setStarted] = useState(false);
+  const [entries, setEntries] = useState<PlayLogItem[]>([]);
   const { isFullscreen, pseudoFs, toggle: toggleFullscreen } = useFullscreen(stageRef);
   const [toggleHost, setToggleHost] = useState<HTMLSpanElement | null>(null); // 「タッチ操作設定」ボタンを置く場所(スタートや音量と同じ並び)
   const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null); // タッチ操作の設定パネルを出す場所(ゲーム画面の外)
@@ -110,15 +122,37 @@ export default function Player({ project }: { project: ProjectInfo }) {
     };
   }, []);
 
-  const appendLog = (text: string) => {
+  useEffect(() => {
     const el = logRef.current;
-    if (!el) return;
-    const next = el.textContent + text;
-    el.textContent = next.length > MAX_LOG_CHARS ? next.slice(-MAX_LOG_CHARS) : next;
-  };
-  const clearLog = () => {
-    if (logRef.current) logRef.current.textContent = "";
-  };
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [entries]);
+
+  const appendEntry = useCallback((entry: LogEntryInput) => {
+    setEntries((prev) => {
+      if (entry.level === "info" && prev.length > 0 && prev[prev.length - 1].level === "info") {
+        const last = prev[prev.length - 1];
+        const merged = last.text + entry.text;
+        const trimmed = merged.length > MAX_LOG_CHARS ? merged.slice(-MAX_LOG_CHARS) : merged;
+        return [...prev.slice(0, -1), { ...last, text: trimmed }];
+      }
+      const next: PlayLogItem = {
+        id: nextLogId.current++,
+        level: entry.level,
+        text: entry.level === "info" && entry.text.length > MAX_LOG_CHARS ? entry.text.slice(-MAX_LOG_CHARS) : entry.text,
+        detail: entry.detail,
+        file: entry.file,
+        line: entry.line,
+      };
+      const updated = [...prev, next];
+      return updated.length > MAX_LOG_ITEMS ? updated.slice(-MAX_LOG_ITEMS) : updated;
+    });
+  }, []);
+
+  const clearLog = useCallback(() => {
+    setEntries([]);
+  }, []);
+
+  const errorCount = entries.filter((e) => e.level === "error").length;
 
   const run = () => {
     if (!data) return;
@@ -186,7 +220,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
                   : // 枠(.ms-screen は container)の幅と高さの両方に収まるように縮める。縦長の作品でも比が崩れない
                     { width: `min(${size.w}px, 100cqw, calc(100cqh * ${size.w} / ${size.h}))` }
               }
-              onLog={appendLog}
+              onLogEntry={appendEntry}
               onClearLog={clearLog}
               onSize={(w, h) => setSize({ w, h })}
             />
@@ -252,8 +286,48 @@ export default function Player({ project }: { project: ProjectInfo }) {
 
         {/* ログ */}
         <section className="ms-panel ms-log-panel" aria-label={t.play.logAria}>
-          <h2>{t.play.logHeading}</h2>
-          <pre ref={logRef} className="ms-log" />
+          <div className="ms-log-head">
+            <h2>{t.play.logHeading}</h2>
+            {errorCount > 0 && <span className="ms-log-count">{t.play.errorCount(errorCount)}</span>}
+            <button
+              type="button"
+              className="ms-btn ms-log-clear"
+              onClick={clearLog}
+              disabled={entries.length === 0}
+            >
+              {t.play.clearLog}
+            </button>
+          </div>
+          <div ref={logRef} className="ms-log" role="log" aria-live="polite">
+            {entries.map((item) => {
+              if (item.level === "info") {
+                return (
+                  <pre key={item.id} className="ms-log-info">
+                    {item.text}
+                  </pre>
+                );
+              }
+              const isError = item.level === "error";
+              return (
+                <div
+                  key={item.id}
+                  className={`ms-log-entry ${isError ? "is-error" : "is-warn"}`}
+                  role={isError ? "alert" : undefined}
+                >
+                  <div className="ms-log-meta">
+                    <span className={`ms-log-badge ${isError ? "is-error" : "is-warn"}`}>
+                      {isError ? t.play.errorBadge : t.play.warnBadge}
+                    </span>
+                    {item.file && item.line && (
+                      <span className="ms-log-loc">{t.play.lineLabel(item.file, item.line)}</span>
+                    )}
+                  </div>
+                  <p className="ms-log-msg">{item.text.trimEnd()}</p>
+                  {item.detail && item.detail !== item.text && <p className="ms-log-detail">{item.detail}</p>}
+                </div>
+              );
+            })}
+          </div>
         </section>
       </div>
     </main>

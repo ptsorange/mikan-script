@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
+import { formatMikanError, MikanScriptError } from "@/lib/lang";
 import { buildScript, kindOf, type Asset } from "@/lib/mks";
 import { SANDBOX_ATTR, SANDBOX_DOC } from "@/lib/sandbox";
 import { useLocale } from "./LocaleProvider";
@@ -10,6 +11,16 @@ import { useLocale } from "./LocaleProvider";
 
    iframe から届くメッセージは「作品のコードが送ってきたもの」なので信用しない。
    型・長さ・大きさを確かめてから使う。 */
+
+export type LogLevel = "info" | "warn" | "error";
+
+export type LogEntryInput = {
+  level: LogLevel;
+  text: string;
+  detail?: string;
+  file?: string;
+  line?: number;
+};
 
 export type GameFrameHandle = {
   /** 最初から動かす(iframe を作りなおすので、前の実行は全部消える) */
@@ -37,6 +48,7 @@ type Props = {
   className?: string;
   style?: CSSProperties;
   onLog?: (text: string) => void;
+  onLogEntry?: (entry: LogEntryInput) => void;
   onClearLog?: () => void;
   /** 作品の画面の大きさ(setScreenSize で変わる)が変わったとき */
   onSize?: (w: number, h: number) => void;
@@ -53,20 +65,26 @@ const clampSize = (v: unknown) => {
   return Number.isFinite(n) ? Math.min(4096, Math.max(1, n)) : null;
 };
 
-export default function GameFrame({ ref, className, style, onLog, onClearLog, onSize }: Props) {
+const clampLine = (v: unknown): number | undefined => {
+  if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+  const n = Math.floor(v);
+  return n >= 1 && n <= 1_000_000 ? n : undefined;
+};
+
+export default function GameFrame({ ref, className, style, onLog, onLogEntry, onClearLog, onSize }: Props) {
   const { locale, t } = useLocale();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const pending = useRef<{ js: string; assets: Asset[]; lang: string } | null>(null);
   const captures = useRef(new Map<number, (v: string | null) => void>());
   const captureId = useRef(0);
   const rate = useRef({ at: 0, count: 0 });
-  const handlers = useRef({ onLog, onClearLog, onSize });
+  const handlers = useRef({ onLog, onLogEntry, onClearLog, onSize });
   const localeRef = useRef({ locale, errorPrefix: t.gameFrame.errorPrefix });
   const [runId, setRunId] = useState(0); // 変えると iframe が作りなおされる
   const [size, setSize] = useState(DEFAULT_SIZE);
 
   useEffect(() => {
-    handlers.current = { onLog, onClearLog, onSize };
+    handlers.current = { onLog, onLogEntry, onClearLog, onSize };
     localeRef.current = { locale, errorPrefix: t.gameFrame.errorPrefix };
   });
 
@@ -85,7 +103,26 @@ export default function GameFrame({ ref, className, style, onLog, onClearLog, on
         const now = Date.now();
         if (now - rate.current.at > 1000) rate.current = { at: now, count: 0 };
         if (++rate.current.count > MAX_LOGS_PER_SEC) return;
-        handlers.current.onLog?.(m.text.slice(0, MAX_LOG_CHARS));
+
+        const rawText = m.text.slice(0, MAX_LOG_CHARS);
+        const level: LogLevel = m.level === "error" || m.level === "warn" ? m.level : "info";
+        const file = typeof m.file === "string" && m.file.length <= 160 ? m.file : undefined;
+        const line = clampLine(m.line);
+
+        if (level === "error") {
+          const formatted = formatMikanError(rawText, localeRef.current.locale);
+          handlers.current.onLogEntry?.({
+            level: "error",
+            text: formatted.message,
+            detail: formatted.detail,
+            file,
+            line,
+          });
+          handlers.current.onLog?.(localeRef.current.errorPrefix + formatted.message + "\n");
+        } else {
+          handlers.current.onLogEntry?.({ level, text: rawText, file, line });
+          handlers.current.onLog?.(rawText);
+        }
       } else if (m.type === "clear") {
         handlers.current.onClearLog?.();
       } else if (m.type === "size") {
@@ -124,7 +161,25 @@ export default function GameFrame({ ref, className, style, onLog, onClearLog, on
           lang: localeRef.current.locale,
         };
       } catch (e) {
-        handlers.current.onLog?.(localeRef.current.errorPrefix + (e instanceof Error ? e.message : String(e)) + "\n");
+        if (e instanceof MikanScriptError) {
+          handlers.current.onLogEntry?.({
+            level: "error",
+            text: e.message,
+            detail: e.detail,
+            file: e.file,
+            line: e.line,
+          });
+          handlers.current.onLog?.(localeRef.current.errorPrefix + e.message + "\n");
+        } else {
+          const raw = e instanceof Error ? e.message : String(e);
+          const formatted = formatMikanError(raw, localeRef.current.locale);
+          handlers.current.onLogEntry?.({
+            level: "error",
+            text: formatted.message,
+            detail: formatted.detail,
+          });
+          handlers.current.onLog?.(localeRef.current.errorPrefix + formatted.message + "\n");
+        }
         return;
       }
       setSize(DEFAULT_SIZE);

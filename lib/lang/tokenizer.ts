@@ -4,6 +4,10 @@ import { commands } from "./commands";
 
 export type Token = string | Token[];
 
+const LINE_NUMBERS = new WeakMap<Token[], number>();
+
+export const getLineNumber = (line: Token[]): number | undefined => LINE_NUMBERS.get(line);
+
 const TOKEN_RE = new RegExp(
   [
     String.raw`\/\/[^\n]*`,
@@ -41,6 +45,7 @@ export const splitCode = (code: string): Token[][] => {
   let parenDepth = 0; // () のネストの深さ
   let bracketDepth = 0; // [] のネストの深さ
   let objectDepth = 0; // 式の中にある {} のネストの深さ
+  let currentLine = 1;
 
   // 先読み用。文字列・コメント・空白を除いた次のトークンを取得する。
   // `{ key : value }` の key が予約語と同じ名前でも変換しないために使う。
@@ -98,6 +103,10 @@ export const splitCode = (code: string): Token[][] => {
 
   for (let tokenIndex = 0; tokenIndex < rawTokens.length; tokenIndex++) {
     let t = rawTokens[tokenIndex];
+    const tokenLine = currentLine;
+    if (t.includes("\n")) {
+      currentLine += t.split("\n").length - 1;
+    }
 
     if (t === "\n" || t === ";") {
       // オブジェクトリテラルの中では改行で式を分割しない。
@@ -133,6 +142,7 @@ export const splitCode = (code: string): Token[][] => {
       if (isObjectLiteralStart(line)) {
         if (!line) {
           line = [];
+          LINE_NUMBERS.set(line, tokenLine);
           current().push(line);
         }
         line.push(t);
@@ -144,7 +154,11 @@ export const splitCode = (code: string): Token[][] => {
         } else {
           const last = current()[current().length - 1];
           if (last) last.push(block);
-          else current().push([block]);
+          else {
+            const wrapper: Token[] = [block];
+            LINE_NUMBERS.set(wrapper, tokenLine);
+            current().push(wrapper);
+          }
         }
         stack.push(block);
         line = null;
@@ -153,6 +167,7 @@ export const splitCode = (code: string): Token[][] => {
       if (objectDepth > 0) {
         if (!line) {
           line = [];
+          LINE_NUMBERS.set(line, tokenLine);
           current().push(line);
         }
         line.push(t);
@@ -164,6 +179,7 @@ export const splitCode = (code: string): Token[][] => {
     } else {
       if (!line) {
         line = [];
+        LINE_NUMBERS.set(line, tokenLine);
         current().push(line);
       }
       line.push(t);

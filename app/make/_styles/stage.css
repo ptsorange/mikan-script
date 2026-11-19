@@ -18,14 +18,108 @@
   border-radius: 10px;
   background: var(--ink);
 }
+.kc-log-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kc-log-head .kc-side-title {
+  margin: 0;
+}
+.kc-log-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(240, 100, 100, 0.2);
+  border: 1px solid rgba(240, 100, 100, 0.5);
+  color: #ff9c9c;
+  font: 600 11px/1.5 var(--ui);
+}
+.kc-log-clear {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.kc-log-clear:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .kc-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-height: 110px;
-  max-height: 220px;
+  max-height: 240px;
   margin: 0;
   padding: 10px 12px;
   overflow: auto;
   border-radius: 8px;
   background: var(--ink);
   font: 13px/1.6 var(--mono);
+}
+.kc-log-info {
+  margin: 0;
+  font: inherit;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.kc-log-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-family: var(--ui);
+}
+.kc-log-entry.is-error {
+  background: rgba(198, 51, 51, 0.16);
+  border-left: 3px solid #f06464;
+}
+.kc-log-entry.is-warn {
+  background: rgba(255, 171, 25, 0.12);
+  border-left: 3px solid var(--orange);
+}
+.kc-log-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.kc-log-badge {
+  padding: 0 6px;
+  border-radius: 4px;
+  font: 700 10px/1.6 var(--ui);
+  letter-spacing: 0.02em;
+}
+.kc-log-badge.is-error {
+  background: #c63333;
+  color: #fff;
+}
+.kc-log-badge.is-warn {
+  background: var(--orange);
+  color: #1d1f2e;
+}
+.kc-log-loc {
+  padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffd38a;
+  font: 11px/1.6 var(--mono);
+  cursor: pointer;
+}
+.kc-log-loc:hover {
+  background: rgba(255, 255, 255, 0.14);
+  text-decoration: underline;
+}
+.kc-log-msg {
+  margin: 0;
+  color: var(--text);
+  font: 12.5px/1.5 var(--ui);
+  overflow-wrap: anywhere;
+}
+.kc-log-detail {
+  margin: 0;
+  color: var(--muted);
+  font: 11px/1.4 var(--mono);
+  overflow-wrap: anywhere;
 }

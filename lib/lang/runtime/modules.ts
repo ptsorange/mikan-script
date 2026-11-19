@@ -4,7 +4,7 @@
 export const MODULE_LIB = `
 const __moduleProxy = (name, exp) => new Proxy(exp, {
   get(t, k, r) {
-    if (typeof k === "string" && !(k in t)) addLog(__lang === "en" ? ('"' + k + '" does not exist in "' + name + '".\\n') : ("「" + name + "」には「" + k + "」がないよ。\\n"));
+    if (typeof k === "string" && !(k in t)) __warn(__lang === "en" ? ('"' + k + '" does not exist in "' + name + '".\\n') : ("「" + name + "」には「" + k + "」がないよ。\\n"));
     return Reflect.get(t, k, r);
   },
 });

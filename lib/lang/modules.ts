@@ -1,5 +1,7 @@
 import type { Locale } from "@/lib/i18n";
-import { splitCode, type Token } from "./tokenizer";
+import { MikanScriptError } from "./errors";
+import { getLineNumber, splitCode, type Token } from "./tokenizer";
+import { validateSyntax } from "./validate";
 
 /* ---------- コードファイル(import) ----------
    code/xxx.code に書いた関数・変数・スプライトを、別のコードから使えるようにする。
@@ -24,7 +26,7 @@ export const normalizeModulePath = (raw: string): string => {
   return "code/" + (/\.code$/i.test(n) ? n : n + ".code");
 };
 
-export type ImportDecl = { alias: string; path: string };
+export type ImportDecl = { alias: string; path: string; line?: number; where?: string };
 
 const unquote = (t: string) =>
   /^["'`]/.test(t) ? (t.length > 1 && t.endsWith(t[0]) ? t.slice(1, -1) : t.slice(1)) : null;
@@ -34,11 +36,11 @@ const importForm = (locale: Locale) =>
     ? 'Use the form: import name "/code/file.code"'
     : 'import 名前 "/code/ファイル.code" の形で書いてね';
 
-const parseImportLine = (head: string[], where: string, locale: Locale): ImportDecl => {
+const parseImportLine = (head: string[], where: string, lineNo: number | undefined, locale: Locale): ImportDecl => {
   const rest = head.slice(1);
   if (rest.length === 3 && rest[1] === "from") rest.splice(1, 1); // import 名前 from "パス" も書ける
   const fail = (msg: string): never => {
-    throw new Error(`${where}: ${msg}`);
+    throw new MikanScriptError(msg, { file: where, line: lineNo });
   };
   const form = importForm(locale);
   if (rest.length < 1 || rest.length > 2) return fail(form);
@@ -66,7 +68,7 @@ const parseImportLine = (head: string[], where: string, locale: Locale): ImportD
         : `「${alias}」は、名前として使えないよ。名前をつけて import してね。` + form
     );
   }
-  return { alias, path };
+  return { alias, path, line: lineNo, where };
 };
 
 const headOf = (line: Token[]) => (Array.isArray(line[line.length - 1]) ? line.slice(0, -1) : line) as string[];
@@ -77,10 +79,11 @@ export const parseImports = (lines: Token[][], where: string, locale: Locale = "
   const nested = (ls: Token[][]) => {
     for (const line of ls) {
       if (line[0] === "import") {
-        throw new Error(
+        throw new MikanScriptError(
           locale === "en"
-            ? `${where}: Write import at the top level (outside blocks)`
-            : `${where}: import は、いちばん上(ブロックの外)に書いてね`
+            ? "Write import at the top level (outside blocks)."
+            : "import は、いちばん上(ブロックの外)に書いてね。",
+          { file: where, line: getLineNumber(line) }
         );
       }
       const b = blockOf(line);
@@ -90,7 +93,7 @@ export const parseImports = (lines: Token[][], where: string, locale: Locale = "
   const out: ImportDecl[] = [];
   for (const line of lines) {
     const head = headOf(line);
-    if (head[0] === "import") out.push(parseImportLine(head, where, locale));
+    if (head[0] === "import") out.push(parseImportLine(head, where, getLineNumber(line), locale));
     else {
       const b = blockOf(line);
       if (b) nested(b);
@@ -128,33 +131,37 @@ export const resolveModules = (mainImports: ImportDecl[], sources: ModuleSources
   const ids = new Map<string, string>();
   const visiting: string[] = [];
 
-  const visit = (path: string) => {
+  const visit = (decl: ImportDecl) => {
+    const path = decl.path;
     if (ids.has(path)) return;
     const at = visiting.indexOf(path);
     if (at !== -1) {
       const cycle = [...visiting.slice(at), path].join(" → ");
-      throw new Error(
-        locale === "en" ? `Circular import detected: ${cycle}` : `import がぐるぐる回ってるよ: ${cycle}`
+      throw new MikanScriptError(
+        locale === "en" ? `Circular import detected: ${cycle}` : `import がぐるぐる回ってるよ: ${cycle}`,
+        { file: decl.where, line: decl.line }
       );
     }
     const src = sources[path];
     if (src === undefined) {
-      throw new Error(
+      throw new MikanScriptError(
         locale === "en"
           ? `"${path}" was not found. Check the filename in the code files list.`
-          : `「${path}」が見つからないよ。左のコード一覧と同じ名前か、たしかめてね。`
+          : `「${path}」が見つからないよ。左のコード一覧と同じ名前か、たしかめてね。`,
+        { file: decl.where, line: decl.line }
       );
     }
+    validateSyntax(src, path, locale);
     visiting.push(path);
     const lines = splitCode(src);
     const imports = parseImports(lines, path, locale);
-    imports.forEach((d) => visit(d.path));
+    imports.forEach((d) => visit(d));
     visiting.pop();
     const id = "__mod" + ids.size;
     ids.set(path, id);
     order.push({ id, path, lines, imports });
   };
 
-  mainImports.forEach((d) => visit(d.path));
+  mainImports.forEach((d) => visit(d));
   return { order, idOf: (path: string) => ids.get(path) as string };
 };

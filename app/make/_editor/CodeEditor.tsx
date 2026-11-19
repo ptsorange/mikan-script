@@ -6,30 +6,36 @@ import type { CodeEditorApi } from "./useCodeEditor";
 import { useLocale } from "@/app/_components/LocaleProvider";
 
 export type EditorTab = { id: string; label: string; closable: boolean };
+export type EditorError = { line: number; message: string };
 
 type Props = {
   code: string; // いま開いているファイルの中身
   editor: CodeEditorApi; // useCodeEditor の戻り値(キー操作などの中身はそちら)
   tabs: EditorTab[]; // 開いているファイル(main.code と、コードファイル)
   activeTab: string;
+  errors?: EditorError[];
+  onDismissErrors?: () => void;
   onSelectTab: (id: string) => void;
   onCloseTab: (id: string) => void;
 };
-
 
 // コードを書く場所: 行番号・色分け・入力欄・入力候補
 export default function CodeEditor({
   code,
   tabs,
   activeTab,
+  errors,
+  onDismissErrors,
   onSelectTab,
   onCloseTab,
   editor: {
     gutterRef,
     hlRef,
+    errBandsRef,
     editorRef,
     suggest,
     runFormat,
+    jumpToLine,
     onInput,
     onCompositionEnd,
     onKeyDown,
@@ -42,6 +48,16 @@ export default function CodeEditor({
   const { t } = useLocale();
   const lineCount = useMemo(() => code.split("\n").length, [code]);
   const highlighted = useMemo(() => highlight(code), [code]);
+  const errorLineMap = useMemo(() => {
+    const map = new Map<number, string>();
+    if (!errors) return map;
+    for (const err of errors) {
+      if (!map.has(err.line)) map.set(err.line, err.message);
+    }
+    return map;
+  }, [errors]);
+  const errorLines = useMemo(() => [...errorLineMap.keys()], [errorLineMap]);
+  const primaryError = errors && errors.length > 0 ? errors[errors.length - 1] : null;
 
   return (
     <section className="kc-editor" aria-label={t.editor.codeEditor.sectionAria}>
@@ -80,13 +96,60 @@ export default function CodeEditor({
           {t.editor.codeEditor.formatBtn}
         </button>
       </div>
+      {primaryError && (
+        <div className="kc-err-banner" role="alert">
+          <button
+            type="button"
+            className="kc-err-banner-main"
+            onClick={() => jumpToLine(primaryError.line)}
+          >
+            <span className="kc-err-banner-dot" aria-hidden="true">!</span>
+            <span>{t.editor.codeEditor.errorLineBanner(primaryError.line, primaryError.message)}</span>
+          </button>
+          {onDismissErrors && (
+            <button
+              type="button"
+              className="kc-err-banner-close"
+              aria-label={t.editor.codeEditor.dismissErrorAria}
+              onClick={onDismissErrors}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
       <div className="kc-code">
         <div className="kc-gutter" aria-hidden="true">
           <div className="kc-gutter-in" ref={gutterRef}>
-            {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
+            {Array.from({ length: lineCount }, (_, i) => {
+              const lineNo = i + 1;
+              const errMsg = errorLineMap.get(lineNo);
+              return (
+                <div
+                  key={lineNo}
+                  className={`kc-gutter-line${errMsg ? " is-error" : ""}`}
+                  title={errMsg}
+                >
+                  {lineNo}
+                </div>
+              );
+            })}
           </div>
         </div>
         <div className="kc-area">
+          {errorLines.length > 0 && (
+            <div className="kc-err-bands" aria-hidden="true">
+              <div className="kc-err-bands-in" ref={errBandsRef}>
+                {errorLines.map((lineNo) => (
+                  <div
+                    key={lineNo}
+                    className="kc-err-band"
+                    style={{ top: (lineNo - 1) * 24 }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           <pre className="kc-hl" aria-hidden="true">
             <span className="kc-hl-in" ref={hlRef}>
               {highlighted}
