@@ -9,8 +9,34 @@ import {
   SPRITE_MEMBERS_BY_LOCALE,
   GROUP_MEMBERS_BY_LOCALE,
   MOUSE_MEMBERS_BY_LOCALE,
+  JS_KEYWORDS,
+  JS_GLOBALS,
+  MATH_MEMBERS,
+  JSON_MEMBERS,
+  OBJECT_MEMBERS,
+  ARRAY_STATIC_MEMBERS,
+  NUMBER_STATIC_MEMBERS,
+  DATE_STATIC_MEMBERS,
+  PROMISE_STATIC_MEMBERS,
+  CONSOLE_MEMBERS,
+  ARRAY_MEMBERS,
+  STRING_MEMBERS,
+  NUMBER_MEMBERS,
 } from "./data";
+
+// 標準オブジェクトの「名前.」のあと
+const STATIC_MEMBERS: Record<string, [string, string][]> = {
+  Math: MATH_MEMBERS,
+  JSON: JSON_MEMBERS,
+  Object: OBJECT_MEMBERS,
+  Array: ARRAY_STATIC_MEMBERS,
+  Number: NUMBER_STATIC_MEMBERS,
+  Date: DATE_STATIC_MEMBERS,
+  Promise: PROMISE_STATIC_MEMBERS,
+  console: CONSOLE_MEMBERS,
+};
 import { IMPORT_PATH_TYPING, scanImports, scanExports, scanNames } from "./scan";
+import { scanObjects, walkObject } from "./objects";
 import type { Candidate, Completion } from "./types";
 
 const KEYWORD_ITEMS = (() => {
@@ -22,6 +48,11 @@ const KEYWORD_ITEMS = (() => {
   }
   return { items, names };
 })();
+
+const uniqueMembers = (list: [string, string][]) => {
+  const seen = new Set<string>();
+  return list.filter(([n]) => (seen.has(n) ? false : (seen.add(n), true)));
+};
 
 const rank = (word: string, q: string) => {
   const w = word.toLowerCase();
@@ -108,19 +139,44 @@ export const getCompletions = (
     return { from: ls + qi + 1, items, typed };
   }
 
-  // . のあと: プロパティ・メソッド
-  const dot = /([\p{L}\p{N}_$]+)\.([\p{L}\p{N}_$]*)$/u.exec(before);
+  // . のあと: プロパティ・メソッド(a.b.c. のように続けて書いたものにも対応)
+  const dot = /((?:[\p{L}\p{N}_$]+\.)*[\p{L}\p{N}_$]+)\.([\p{L}\p{N}_$]*)$/u.exec(before);
   if (dot && !/^\d+$/.test(dot[1])) {
     const names = scanNames(v);
-    const obj = dot[1];
+    const parts = dot[1].split(".");
+    const obj = parts[0];
+    const path = parts.slice(1);
     const typed = dot[2];
     let list: [string, string][];
+    const generic = () =>
+      // 何かわからないものは、スプライト・グループ・配列・文字列の候補をまとめて出す
+      uniqueMembers([
+        ...SPRITE_MEMBERS_BY_LOCALE[locale],
+        ...GROUP_MEMBERS_BY_LOCALE[locale],
+        ...ARRAY_MEMBERS,
+        ...STRING_MEMBERS,
+        ...NUMBER_MEMBERS,
+      ]);
     const importedPath = scanImports(v).get(obj);
-    if (importedPath) list = scanExports(modules?.(importedPath) ?? "", locale);
+    const objTree = importedPath ? undefined : scanObjects(v).get(obj);
+    if (importedPath && path.length === 0) list = scanExports(modules?.(importedPath) ?? "", locale);
+    else if (objTree) {
+      // const a = { b: { c: 1 } } と書いてあるとき、a. で b、a.b. で c
+      const tree = walkObject(objTree, path);
+      list = tree
+        ? [...tree]
+            .filter(([k]) => /^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(k))
+            .map<[string, string]>(([k, n]) => [
+              k,
+              n.children ? (isEn ? "object" : "オブジェクト") : isEn ? "property" : "プロパティ",
+            ])
+        : generic();
+    } else if (path.length > 0) list = generic();
+    else if (STATIC_MEMBERS[obj] && !names.vars.has(obj)) list = STATIC_MEMBERS[obj];
     else if (obj === "mouse" || obj === "マウス") list = MOUSE_MEMBERS_BY_LOCALE[locale];
     else if (names.groups.has(obj)) list = GROUP_MEMBERS_BY_LOCALE[locale];
     else if (names.sprites.has(obj)) list = SPRITE_MEMBERS_BY_LOCALE[locale];
-    else list = [...SPRITE_MEMBERS_BY_LOCALE[locale], ...GROUP_MEMBERS_BY_LOCALE[locale]];
+    else list = generic();
     const q = typed.toLowerCase();
     const items = list
       .map(([n, d]) => ({ n, d, r: q ? rank(n.replace("(", ""), q) : 1 }))
@@ -167,6 +223,11 @@ export const getCompletions = (
     }
   }
   for (const f of FUNCS_BY_LOCALE[locale]) push({ label: f.name, detail: f.sig, kind: "fn", body: f.body }, f.name);
+  for (const k of JS_KEYWORDS) {
+    if (KEYWORD_ITEMS.names.has(k.name)) continue;
+    push({ label: k.name, detail: k.detail, kind: "kw", body: k.body }, k.name);
+  }
+  for (const g of JS_GLOBALS) push({ label: g.name, detail: g.detail, kind: g.kind, body: g.body }, g.name);
   for (const n of names.vars) {
     if (KEYWORD_ITEMS.names.has(n)) continue;
     push(
@@ -194,7 +255,7 @@ export const getCompletions = (
     .sort((a, b) => a.r - b.r || (a.c.kind === "var" ? -1 : 0) - (b.c.kind === "var" ? -1 : 0))
     .map((x) => x.c)
     .filter((c) => (seen.has(c.label) ? false : (seen.add(c.label), true)))
-    .slice(0, 8);
+    .slice(0, 10);
   if (!items.length) return null;
   if (!force && items.length === 1 && items[0].label === typed && !items[0].body.includes("$0")) return null;
   return { from, items, typed };

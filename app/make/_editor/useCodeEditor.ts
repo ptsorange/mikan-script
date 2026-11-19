@@ -1,5 +1,13 @@
 import type { Block } from "blockly";
-import { useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { blockToCode } from "@/lib/blocks";
 import {
   typeChar,
@@ -7,6 +15,15 @@ import {
   enter,
   tab,
   toggleComment,
+  wholeLine,
+  deleteLines,
+  moveLines,
+  copyLines,
+  selectLine,
+  insertLine,
+  smartHome,
+  indentLines,
+  findDefinition,
   formatCode,
   getCompletions,
   applyCandidate,
@@ -15,6 +32,7 @@ import {
 } from "@/lib/editing";
 import { dataUrlToText, type Asset } from "@/lib/mks";
 import { useLocale } from "@/app/_components/LocaleProvider";
+import { useFind } from "./useFind";
 
 // 入力候補(x, y は入力欄の中での位置)
 export type Suggest = {
@@ -32,16 +50,19 @@ type Params = {
   onCodeChange: (value: string) => void;
   assets: Asset[]; // makeSprite(" のあとに画像の名前を、import "…" のあとにコードファイルの名前を、候補に出す
   onRun: () => void; // Ctrl + Enter
+  // Ctrl + クリックで、ほかのコードファイルの定義へ飛ぶとき(file は "code/xxx.code")
+  onOpenDefinition?: (file: string, line: number, col: number, length: number) => void;
 };
 
 // コード入力欄の動き: スクロール同期・カーソル位置・キー操作・入力候補・ブロックの挿入
-export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
+export function useCodeEditor({ code, onCodeChange, assets, onRun, onOpenDefinition }: Params) {
   const { locale } = useLocale();
   const editorRef = useRef<HTMLTextAreaElement>(null);
   // 色分け表示・行番号の「中身」。入力欄のスクロール量だけ transform で動かして重ねる
   const hlRef = useRef<HTMLSpanElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const errBandsRef = useRef<HTMLDivElement>(null);
+  const findHlRef = useRef<HTMLSpanElement>(null); // 検索で見つけた場所の色づけ
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
 
   const [suggest, setSuggestState] = useState<Suggest | null>(null);
@@ -63,6 +84,7 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     if (hlRef.current) hlRef.current.style.transform = `translate(${-ta.scrollLeft}px, ${-ta.scrollTop}px)`;
     if (gutterRef.current) gutterRef.current.style.transform = `translateY(${-ta.scrollTop}px)`;
     if (errBandsRef.current) errBandsRef.current.style.transform = `translateY(${-ta.scrollTop}px)`;
+    if (findHlRef.current) findHlRef.current.style.transform = `translate(${-ta.scrollLeft}px, ${-ta.scrollTop}px)`;
   };
 
   // 文字を入れたあと・大きさが変わったあとも合わせなおす
@@ -85,7 +107,7 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
   };
 
   // 指定した行へスクロール＆カーソル移動する(エラー行へのジャンプ用)
-  const jumpToLine = (lineNumber: number) => {
+  const jumpToLine = (lineNumber: number, target?: { col: number; length: number }) => {
     requestAnimationFrame(() => {
       const ta = editorRef.current;
       if (!ta) return;
@@ -95,9 +117,12 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
       for (let i = 0; i < targetLine - 1; i++) {
         start += lines[i].length + 1;
       }
-      const end = start + (lines[targetLine - 1]?.length ?? 0);
+      const lineLen = lines[targetLine - 1]?.length ?? 0;
+      // 名前の場所が分かっているときは、その名前だけを選ぶ(エラー行のジャンプは、行ぜんたい)
+      const selFrom = target ? start + Math.min(target.col, lineLen) : start;
+      const selTo = target ? Math.min(start + lineLen, selFrom + target.length) : start + lineLen;
       ta.focus();
-      ta.setSelectionRange(start, end);
+      ta.setSelectionRange(selFrom, selTo);
       const lh = parseFloat(getComputedStyle(ta).lineHeight) || 24;
       ta.scrollTop = Math.max(0, (targetLine - 1) * lh - ta.clientHeight / 2 + lh / 2);
       syncScroll();
@@ -177,10 +202,7 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
       caret,
       assets.map((a) => a.name),
       force,
-      (path) => {
-        const a = assets.find((x) => x.name === path);
-        return a ? dataUrlToText(a.data) : undefined;
-      },
+      moduleSource,
       locale
     );
     if (!res) return setSuggest(null);
@@ -217,6 +239,8 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     applyEdit({ from: 0, to: ta.value.length, text: r.text, select: [r.caret, r.caret] });
   };
 
+  const find = useFind({ code, editorRef, applyEdit, syncScroll, updateCursor });
+
   const onInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
     onCodeChange(e.target.value);
     if (skipRefresh.current) return;
@@ -226,6 +250,52 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     if (t === "insertText" || t === "insertFromComposition") refreshSuggest();
     else if (t.startsWith("delete") && suggestRef.current) refreshSuggest();
     else setSuggest(null);
+  };
+
+  // VS Code と同じ: 何も選んでいないときの Ctrl + C / Ctrl + X は、行ぜんぶが対象
+  const onCopy = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const ta = e.currentTarget;
+    if (ta.selectionStart !== ta.selectionEnd) return;
+    e.preventDefault();
+    e.clipboardData.setData("text/plain", wholeLine(ta.value, ta.selectionStart).text);
+  };
+  const onCut = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const ta = e.currentTarget;
+    if (ta.selectionStart !== ta.selectionEnd) return;
+    e.preventDefault();
+    e.clipboardData.setData("text/plain", wholeLine(ta.value, ta.selectionStart).text);
+    applyEdit(deleteLines(ta.value, ta.selectionStart, ta.selectionEnd));
+  };
+
+  // コードファイルの中身(「名前.」のあとの候補・定義ジャンプ用)
+  const moduleSource = (path: string) => {
+    const a = assets.find((x) => x.name === path);
+    return a ? dataUrlToText(a.data) : undefined;
+  };
+
+  // Ctrl + クリック: クリックした名前が作られている場所へ飛ぶ
+  const goToDefinition = (offset: number) => {
+    const ta = editorRef.current;
+    if (!ta) return;
+    const def = findDefinition(ta.value, offset, moduleSource);
+    if (!def) return;
+    if (def.file === null) jumpToLine(def.line, { col: def.col, length: def.length });
+    else onOpenDefinition?.(def.file, def.line, def.col, def.length);
+  };
+
+  const onClick = (e: MouseEvent<HTMLTextAreaElement>) => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+    const ta = e.currentTarget;
+    if (ta.selectionStart !== ta.selectionEnd) return; // 範囲を選んでいるときは、ふつうの操作
+    goToDefinition(ta.selectionStart);
+  };
+
+  // Ctrl を押しているあいだは、マウスの形を「クリックできる」にする
+  const onMouseMove = (e: MouseEvent<HTMLTextAreaElement>) => {
+    e.currentTarget.classList.toggle("is-link", e.ctrlKey || e.metaKey);
+  };
+  const onMouseLeave = (e: MouseEvent<HTMLTextAreaElement>) => {
+    e.currentTarget.classList.remove("is-link");
   };
 
   const onCompositionEnd = () => requestAnimationFrame(() => refreshSuggest());
@@ -239,7 +309,7 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
 
     // 入力候補が出ているとき
     if (sg) {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.altKey) {
         e.preventDefault();
         const n = sg.items.length;
         setSuggest({ ...sg, index: (sg.index + (e.key === "ArrowDown" ? 1 : n - 1)) % n });
@@ -264,7 +334,52 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
       if (["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", "Enter"].includes(e.key)) setSuggest(null);
     }
 
-    if (mod && e.key === "Enter") {
+    const k = e.code;
+    if (mod && !e.altKey && !e.shiftKey && k === "KeyF") {
+      e.preventDefault();
+      find.openFind(false);
+    } else if (mod && !e.altKey && k === "KeyH") {
+      e.preventDefault();
+      find.openFind(true);
+    } else if (k === "F3" && !mod) {
+      e.preventDefault();
+      if (e.shiftKey) find.prev();
+      else find.next();
+    } else if (e.key === "Escape" && find.open) {
+      e.preventDefault();
+      find.close();
+    } else if (mod && !e.altKey && !e.shiftKey && k === "KeyD") {
+      e.preventDefault();
+      find.selectNextOccurrence();
+    } else if (mod && !e.altKey && !e.shiftKey && k === "KeyL") {
+      e.preventDefault();
+      applyEdit(selectLine(v, s, en));
+    } else if (mod && e.shiftKey && !e.altKey && k === "KeyK") {
+      e.preventDefault();
+      applyEdit(deleteLines(v, s, en));
+    } else if (e.altKey && !mod && (k === "ArrowUp" || k === "ArrowDown")) {
+      e.preventDefault();
+      const dir = k === "ArrowUp" ? -1 : 1;
+      const ed = e.shiftKey ? copyLines(v, s, en, dir) : moveLines(v, s, en, dir);
+      if (ed) applyEdit(ed);
+    } else if (mod && !e.altKey && (k === "BracketRight" || k === "BracketLeft")) {
+      e.preventDefault();
+      const ed = indentLines(v, s, en, k === "BracketLeft");
+      if (ed) applyEdit(ed);
+    } else if (mod && e.shiftKey && e.key === "Enter") {
+      e.preventDefault();
+      applyEdit(insertLine(v, s, true));
+    } else if (k === "Home" && !mod && !e.altKey) {
+      e.preventDefault();
+      const back = ta.selectionDirection === "backward";
+      const focus = back ? s : en;
+      const to = smartHome(v, focus);
+      if (e.shiftKey) {
+        const anchor = back ? en : s;
+        ta.setSelectionRange(Math.min(anchor, to), Math.max(anchor, to), to < anchor ? "backward" : "forward");
+      } else ta.setSelectionRange(to, to);
+      updateCursor();
+    } else if (mod && e.key === "Enter") {
       e.preventDefault();
       onRun();
     } else if (e.altKey && e.shiftKey && e.code === "KeyF") {
@@ -304,6 +419,8 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     hlRef,
     gutterRef,
     errBandsRef,
+    findHlRef,
+    find,
     cursor,
     suggest,
     closeSuggest: () => setSuggest(null),
@@ -317,6 +434,11 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
     onInput,
     onCompositionEnd,
     onKeyDown,
+    onCopy,
+    onCut,
+    onClick,
+    onMouseMove,
+    onMouseLeave,
   };
 }
 

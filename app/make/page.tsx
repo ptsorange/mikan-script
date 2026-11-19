@@ -147,6 +147,12 @@ export default function Editor() {
     },
     assets,
     onRun: runCode,
+    // Ctrl + クリックで、import したコードファイルの定義へ飛ぶ(ファイルを開いて、その名前を選ぶ)
+    onOpenDefinition: (file, line, col, length) => {
+      if (!assets.some((a) => a.name === file)) return;
+      openFile(file);
+      editor.jumpToLine(line, length > 0 ? { col, length } : undefined);
+    },
   });
 
   const jumpToLocation = (file: string, line: number) => {

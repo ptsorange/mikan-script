@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { highlight } from "./highlight";
+import FindBar from "./FindBar";
 import type { CodeEditorApi } from "./useCodeEditor";
 import { useLocale } from "@/app/_components/LocaleProvider";
 
@@ -32,6 +33,8 @@ export default function CodeEditor({
     gutterRef,
     hlRef,
     errBandsRef,
+    findHlRef,
+    find,
     editorRef,
     suggest,
     runFormat,
@@ -39,6 +42,11 @@ export default function CodeEditor({
     onInput,
     onCompositionEnd,
     onKeyDown,
+    onCopy,
+    onCut,
+    onClick,
+    onMouseMove,
+    onMouseLeave,
     closeSuggest,
     syncScroll,
     updateCursor,
@@ -57,6 +65,24 @@ export default function CodeEditor({
     return map;
   }, [errors]);
   const errorLines = useMemo(() => [...errorLineMap.keys()], [errorLineMap]);
+  // 検索で見つけた場所(文字は透明で、背景だけ描く)。多すぎるときは先頭だけ
+  const { open: findOpen, matches: findList, current: findCurrent } = find;
+  const findMarks = useMemo(() => {
+    if (!findOpen || findList.length === 0) return null;
+    const out: ReactNode[] = [];
+    let last = 0;
+    findList.slice(0, 2000).forEach((m, i) => {
+      if (m.from > last) out.push(code.slice(last, m.from));
+      out.push(
+        <mark key={m.from} className={i === findCurrent ? "is-current" : undefined}>
+          {code.slice(m.from, m.to)}
+        </mark>
+      );
+      last = m.to;
+    });
+    out.push(code.slice(last) + "\n");
+    return out;
+  }, [findOpen, findList, findCurrent, code]);
   const primaryError = errors && errors.length > 0 ? errors[errors.length - 1] : null;
 
   return (
@@ -150,6 +176,13 @@ export default function CodeEditor({
               </div>
             </div>
           )}
+          {findMarks && (
+            <pre className="kc-find-hl" aria-hidden="true">
+              <span className="kc-find-hl-in" ref={findHlRef}>
+                {findMarks}
+              </span>
+            </pre>
+          )}
           <pre className="kc-hl" aria-hidden="true">
             <span className="kc-hl-in" ref={hlRef}>
               {highlighted}
@@ -169,11 +202,17 @@ export default function CodeEditor({
             onChange={onInput}
             onCompositionEnd={onCompositionEnd}
             onKeyDown={onKeyDown}
+            onCopy={onCopy}
+            onCut={onCut}
+            onClick={onClick}
+            onMouseMove={onMouseMove}
+            onMouseLeave={onMouseLeave}
             onBlur={closeSuggest}
             onMouseDown={closeSuggest}
             onScroll={syncScroll}
             onSelect={updateCursor}
           />
+          {find.open && <FindBar find={find} />}
           {suggest && (
             <ul
               className="kc-suggest"

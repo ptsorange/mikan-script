@@ -184,6 +184,7 @@
   color: transparent;
   caret-color: #fff;
 }
+.kc-input.is-link { cursor: pointer; }
 .kc-input::selection { background: rgba(76, 151, 255, 0.4); }
 
 /* 入力候補 */
@@ -232,3 +233,113 @@
 .tk-vr { color: #ee93ee; background: rgba(207, 99, 207, 0.18); border-radius: 4px; }
 .tk-mt { color: var(--cyan); background: rgba(89, 192, 224, 0.16); border-radius: 4px; }
 .tk-pn { color: #3fe0b5; background: rgba(15, 189, 140, 0.18); border-radius: 4px; }
+
+/* JavaScript の色分け(ブロックの色とちがい、文字の色だけ) */
+.tk-kw { color: #ff7eb6; }
+.tk-va { color: #ffb86c; }
+.tk-gl { color: #6fd3ff; }
+.tk-fc { color: #f1fa8c; }
+.tk-pr { color: #9fd2ff; }
+.tk-bi { color: #ffb86c; }
+
+/* 検索で見つけた場所(入力欄の下に、同じ位置で文字を透明にして重ねる) */
+.kc-find-hl {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 12px 14px 40px;
+  overflow: hidden;
+  border: 0;
+  color: transparent;
+  font: 15px/24px var(--mono);
+  font-variant-ligatures: none;
+  letter-spacing: 0;
+  white-space: pre;
+  tab-size: 2;
+  pointer-events: none;
+}
+.kc-find-hl-in { display: block; will-change: transform; }
+.kc-find-hl mark {
+  border-radius: 2px;
+  background: rgba(255, 171, 25, 0.32);
+  color: transparent;
+  box-shadow: 0 0 0 1px rgba(255, 171, 25, 0.55);
+}
+.kc-find-hl mark.is-current {
+  background: rgba(76, 151, 255, 0.5);
+  box-shadow: 0 0 0 1px #4c97ff;
+}
+
+/* 検索・置換バー */
+.kc-find {
+  position: absolute;
+  top: 6px;
+  right: 18px;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: calc(100% - 24px);
+  padding: 4px 6px 4px 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font: 12px/1.4 var(--ui);
+}
+.kc-find-rows { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kc-find-row { display: flex; align-items: center; gap: 3px; }
+.kc-find-expand {
+  align-self: stretch;
+  width: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.kc-find-expand:hover { background: var(--line); color: var(--text); }
+.kc-find-expand.is-on { transform: rotate(90deg); }
+.kc-find-input {
+  width: 190px;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  outline: 0;
+  background: var(--ink);
+  color: var(--text);
+  font: 13px var(--mono);
+}
+.kc-find-input:focus { border-color: #4c97ff; }
+.kc-find-input.is-bad { border-color: #f06464; }
+.kc-find-opt,
+.kc-find-btn,
+.kc-find-txt {
+  flex: none;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: 12px var(--mono);
+  cursor: pointer;
+}
+.kc-find-opt:hover,
+.kc-find-btn:hover,
+.kc-find-txt:hover { background: var(--line); color: var(--text); }
+.kc-find-opt.is-on { border-color: #4c97ff; background: rgba(76, 151, 255, 0.25); color: var(--text); }
+.kc-find-txt { font-family: var(--ui); white-space: nowrap; }
+.kc-find-count {
+  min-width: 56px;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
