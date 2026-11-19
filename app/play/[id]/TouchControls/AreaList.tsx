@@ -1,4 +1,5 @@
 import { actionLabel, type TouchArea } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 type Props = {
   areas: TouchArea[];
@@ -8,8 +9,10 @@ type Props = {
 
 /** ボタンの一覧(押すと、そのボタンを選ぶ) */
 export default function AreaList({ areas, selectedId, setSelectedId }: Props) {
+  const { locale, t } = useLocale();
+
   return (
-    <div className="ms-touch-list" aria-label="当たり判定一覧">
+    <div className="ms-touch-list" aria-label={t.touch.areaListAria}>
       {areas.map((area) => (
         <button
           key={area.id}
@@ -18,7 +21,7 @@ export default function AreaList({ areas, selectedId, setSelectedId }: Props) {
           onClick={() => setSelectedId(area.id)}
         >
           <span>{area.label}</span>
-          <small>{actionLabel(area)}</small>
+          <small>{actionLabel(area, locale)}</small>
         </button>
       ))}
     </div>

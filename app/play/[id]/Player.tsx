@@ -6,6 +6,7 @@ import { fetchProject, type Asset } from "@/lib/mks";
 import type { ProjectInfo } from "@/lib/projects";
 import type { TouchControlsConfig } from "@/lib/touchControls";
 import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import { useFullscreen } from "@/app/_components/useFullscreen";
 import TouchControls from "./TouchControls";
 
@@ -17,6 +18,7 @@ const MAX_LOG_CHARS = 20000; // ログが増えすぎて重くならないよう
      [ ログ ]
    タイトルと説明は、長いときは枠を変えずに ... で省略する */
 export default function Player({ project }: { project: ProjectInfo }) {
+  const { locale, t } = useLocale();
   const stageRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<HTMLButtonElement>(null);
   const frameRef = useRef<GameFrameHandle>(null);
@@ -34,7 +36,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
   // 作品を読み込む。ページを離れるときは、ゲームも音も止める
   useEffect(() => {
     let alive = true;
-    fetchProject(project.id, project.version)
+    fetchProject(project.id, project.version, locale)
       .then((p) => alive && setData({ code: p.code, assets: p.assets, touchControls: p.meta.touchControls }))
       .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
 
@@ -42,7 +44,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
       alive = false;
       // ゲームと音は、iframe がページと一緒に消えるので止まる
     };
-  }, [project.id]);
+  }, [project.id, project.version, locale]);
 
   // 読み込みが終わったら、スタートボタンにフォーカスする(Enter / スペースキーでも開始できる)
   useEffect(() => {
@@ -137,17 +139,17 @@ export default function Player({ project }: { project: ProjectInfo }) {
         disabled={!data}
         onClick={(e) => { run(); e.currentTarget.blur(); }}
       >
-        {started ? "↻ 最初から" : "▶ スタート"}
+        {started ? t.play.restart : t.play.start}
       </button>
       <button
         className="ms-btn ms-btn-red"
         disabled={!started}
         onClick={(e) => { frameRef.current?.stop(); e.currentTarget.blur(); }}
       >
-        ■ 停止
+        {t.play.stop}
       </button>
       <button className="ms-btn" onClick={(e) => { toggleFullscreen(); e.currentTarget.blur(); }}>
-        {isFullscreen ? "🗗 全画面を終了" : "⛶ 全画面"}
+        {isFullscreen ? t.play.exitFullscreen : t.play.fullscreen}
       </button>
       <span className="ms-controls-slot" ref={setToggleHost} />
       <input type="range" value={volume} onChange={handleVolumeChange} min="0" max="100" step="1"/>
@@ -165,12 +167,12 @@ export default function Player({ project }: { project: ProjectInfo }) {
         <h1 className="ms-play-title ms-ellipsis" title={project.title}>
           {project.title}
         </h1>
-        {project.author && <p className="ms-play-author ms-ellipsis">作者: {project.author}</p>}
+        {project.author && <p className="ms-play-author ms-ellipsis">{t.play.author(project.author)}</p>}
       </div>
 
       <div className="ms-play-grid">
         {/* 作品 */}
-        <section className="ms-stage" aria-label="ゲーム画面">
+        <section className="ms-stage" aria-label={t.play.stageAria}>
           {!isFullscreen && controls}
 
           <div className={`ms-screen${pseudoFs ? " is-pseudo-fs" : ""}`} ref={stageRef}>
@@ -194,7 +196,7 @@ export default function Player({ project }: { project: ProjectInfo }) {
                 <div className="ms-start-inner">
                   {error ? (
                     <p role="alert" className="ms-error">
-                      読み込みに失敗しました: {error}
+                      {t.play.loadError(error)}
                     </p>
                   ) : (
                     <>
@@ -204,9 +206,9 @@ export default function Player({ project }: { project: ProjectInfo }) {
                         disabled={!data}
                         onClick={run}
                       >
-                        {data ? "▶ スタート" : "読み込み中…"}
+                        {data ? t.play.start : t.play.loading}
                       </button>
-                      <p className="ms-start-hint">ボタンを押すと開始します(音が出ます)</p>
+                      <p className="ms-start-hint">{t.play.startHint}</p>
                     </>
                   )}
                 </div>
@@ -231,26 +233,26 @@ export default function Player({ project }: { project: ProjectInfo }) {
         </section>
 
         {/* 説明 */}
-        <aside className="ms-panel ms-side" aria-label="作品の説明">
+        <aside className="ms-panel ms-side" aria-label={t.play.sideAria}>
           <div className="ms-side-inner">
-            <h2>説明</h2>
+            <h2>{t.play.descriptionHeading}</h2>
             <p className="ms-side-desc" title={project.description || undefined}>
-              {project.description || "説明はありません。"}
+              {project.description || t.play.noDescription}
             </p>
             <div className="ms-side-actions">
               <Link href={`/make?load=${id}`} className="ms-btn ms-btn-blue">
-                ✎ 改造する
+                {t.play.remix}
               </Link>
               <a href={`/projects/${id}.mks`} download className="ms-btn">
-                ⭳ ダウンロード
+                {t.play.download}
               </a>
             </div>
           </div>
         </aside>
 
         {/* ログ */}
-        <section className="ms-panel ms-log-panel" aria-label="ログ">
-          <h2>ログ</h2>
+        <section className="ms-panel ms-log-panel" aria-label={t.play.logAria}>
+          <h2>{t.play.logHeading}</h2>
           <pre ref={logRef} className="ms-log" />
         </section>
       </div>

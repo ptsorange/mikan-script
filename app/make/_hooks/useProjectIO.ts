@@ -1,5 +1,7 @@
 import { useEffect, type ChangeEvent } from "react";
 import { buildMks, parseMks, fetchProject, toMeta, type Asset, type Meta } from "@/lib/mks";
+import { LOCALE_STORAGE_KEY, MESSAGES, isLocale, type Locale } from "@/lib/i18n";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import {
   CODE_KEY,
   META_KEY,
@@ -9,7 +11,7 @@ import {
   storeAssets,
   isAsset,
 } from "../_lib/storage";
-import { SAMPLE_CODE } from "../_lib/sample";
+import { getSampleCode, isSampleCode } from "../_lib/sample";
 
 type Params = {
   inputCode: string;
@@ -29,10 +31,24 @@ type Params = {
 
 // 起動時の読み込み(localStorage / IndexedDB / ?load=作品名)と、.mks の書き出し・読み込み
 export function useProjectIO(p: Params) {
+  const { locale, t } = useLocale();
+
   // 読み込み: コードは localStorage、画像と音は IndexedDB
   useEffect(() => {
+    let initialLocale: Locale = "ja";
+    try {
+      const savedLoc = localStorage.getItem(LOCALE_STORAGE_KEY);
+      if (isLocale(savedLoc)) initialLocale = savedLoc;
+      else if (typeof navigator !== "undefined" && !navigator.language.toLowerCase().startsWith("ja")) {
+        initialLocale = "en";
+      }
+    } catch {
+      /* ignore */
+    }
+    const initMsgs = MESSAGES[initialLocale].editor.notices;
+
     const savedCode = localStorage.getItem(CODE_KEY);
-    p.setInputCode(savedCode ?? SAMPLE_CODE);
+    p.setInputCode(savedCode ?? getSampleCode(initialLocale));
     try {
       const m = JSON.parse(localStorage.getItem(META_KEY) ?? "null");
       if (m) p.setMeta(toMeta(m));
@@ -46,13 +62,11 @@ export function useProjectIO(p: Params) {
       // /make?load=作品名 で、ホームの作品を読み込んで改造できる
       const loadId = new URLSearchParams(window.location.search).get("load");
       if (loadId) {
-        const hasWork = savedCode !== null && savedCode !== SAMPLE_CODE;
-        const ok =
-          !hasWork ||
-          window.confirm("現在のプログラムと画像・音を、「" + loadId + "」の内容で置き換えます。よろしいですか?");
+        const hasWork = savedCode !== null && !isSampleCode(savedCode);
+        const ok = !hasWork || window.confirm(initMsgs.confirmLoadProject(loadId));
         if (ok) {
           try {
-            const proj = await fetchProject(loadId);
+            const proj = await fetchProject(loadId, undefined, initialLocale);
             await storeAssets(proj.assets);
             if (alive) {
               p.setAssets(proj.assets);
@@ -65,7 +79,7 @@ export function useProjectIO(p: Params) {
               return;
             }
           } catch (err: any) {
-            if (alive) p.setNotice("作品を読み込めませんでした: " + (err?.message ?? String(err)));
+            if (alive) p.setNotice(initMsgs.loadProjectFailed(err?.message ?? String(err)));
           }
         } else {
           window.history.replaceState(null, "", "/make");
@@ -91,7 +105,7 @@ export function useProjectIO(p: Params) {
         if (alive) p.setAssets(saved);
       } catch {
         if (alive) {
-          p.setNotice("画像と音の保存場所を開けなかったよ。シークレットモードだと使えないことがあるよ。");
+          p.setNotice(initMsgs.storageOpenFailed);
         }
       }
     })();
@@ -117,10 +131,10 @@ export function useProjectIO(p: Params) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!window.confirm("いまのプログラムと画像・音は、読み込むものに置きかわるよ。いい?")) return;
+    if (!window.confirm(t.editor.notices.confirmImportProject)) return;
 
     try {
-      const { code, assets: imported, meta: importedMeta, thumbnail: importedThumb } = await parseMks(file);
+      const { code, assets: imported, meta: importedMeta, thumbnail: importedThumb } = await parseMks(file, locale);
 
       p.stopPreview();
       if (await p.saveAssets(imported)) {
@@ -130,7 +144,7 @@ export function useProjectIO(p: Params) {
         localStorage.setItem(META_KEY, JSON.stringify(importedMeta));
       }
     } catch (err: any) {
-      p.setNotice("読み込めなかったよ: " + (err?.message ?? String(err)));
+      p.setNotice(t.editor.notices.importProjectFailed(err?.message ?? String(err)));
     }
   };
 

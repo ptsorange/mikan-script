@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { KINDS, kindOf, extOf, toPath, textToDataUrl, type Kind, type Asset } from "@/lib/mks";
+import type { Locale } from "@/lib/i18n";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import { storeAssets } from "../_lib/storage";
 import { readAsDataUrl, withMime } from "../_lib/files";
 
@@ -11,7 +13,18 @@ type Params = {
 };
 
 // 新しく作ったコードファイルに最初から入れておく中身
-const NEW_CODE_TEMPLATE = `// コードファイル。ここに書いた function / num / text / sprite は、
+const getNewCodeTemplate = (locale: Locale) =>
+  locale === "en"
+    ? `// Code file. Top-level function / num / text / sprite declarations
+// can be imported and used from other files:
+//   import name "/code/filename.code"
+//   name.hello()
+
+function hello() {
+  println("hello")
+}
+`
+    : `// コードファイル。ここに書いた function / num / text / sprite は、
 // ほかのコードから import して使えるよ。
 //   import 名前 "/code/このファイルの名前.code"
 //   名前.hello()
@@ -23,6 +36,7 @@ function hello() {
 
 // 画像・音・コードファイル(texture/ sound/ code/)の追加・作成・名前変更・削除
 export function useAssets({ setNotice, previewName, stopPreview, onRenamed }: Params) {
+  const { locale, t } = useLocale();
   const [assets, setAssets] = useState<Asset[]>([]);
   // 最新の assets(文字を打つたびに保存し直さないよう、少し待ってからまとめて保存するときに使う)
   const assetsRef = useRef<Asset[]>([]);
@@ -53,7 +67,7 @@ export function useAssets({ setNotice, previewName, stopPreview, onRenamed }: Pa
     if (!saveTimer.current) return;
     cancelPendingSave();
     storeAssets(assetsRef.current).catch(() => {
-      setNotice("保存できなかったよ。ファイルが大きすぎるかも。小さいファイルでためしてね。");
+      setNotice(t.editor.notices.saveTooLarge);
     });
   };
 
@@ -82,7 +96,7 @@ export function useAssets({ setNotice, previewName, stopPreview, onRenamed }: Pa
       setNotice("");
       return true;
     } catch {
-      setNotice("保存できなかったよ。ファイルが大きすぎるかも。小さいファイルでためしてね。");
+      setNotice(t.editor.notices.saveTooLarge);
       return false;
     }
   };
@@ -101,11 +115,7 @@ export function useAssets({ setNotice, previewName, stopPreview, onRenamed }: Pa
           ? files.filter(isCodeFile)
           : files;
     if (usable.length === 0) {
-      setNotice(
-        kind === "code"
-          ? "使えないファイルだよ。コードは .code(または .txt / .js)にしてね。"
-          : "使えないファイルだよ。音は mp3 / wav / ogg / m4a にしてね。"
-      );
+      setNotice(kind === "code" ? t.editor.notices.invalidCodeFile : t.editor.notices.invalidSoundFile);
       return;
     }
 
@@ -129,7 +139,7 @@ export function useAssets({ setNotice, previewName, stopPreview, onRenamed }: Pa
     const taken = new Set(assetsRef.current.map((a) => a.name));
     let name = "code/new_code.code";
     for (let n = 2; taken.has(name); n++) name = `code/new_code_${n}.code`;
-    const ok = await saveAssets([...assetsRef.current, { name, data: textToDataUrl(NEW_CODE_TEMPLATE) }]);
+    const ok = await saveAssets([...assetsRef.current, { name, data: textToDataUrl(getNewCodeTemplate(locale)) }]);
     return ok ? name : null;
   };
 
@@ -142,7 +152,7 @@ export function useAssets({ setNotice, previewName, stopPreview, onRenamed }: Pa
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
       storeAssets(assetsRef.current).catch(() => {
-        setNotice("保存できなかったよ。ファイルが大きすぎるかも。小さいファイルでためしてね。");
+        setNotice(t.editor.notices.saveTooLarge);
       });
     }, 400);
   };
@@ -167,7 +177,7 @@ export function useAssets({ setNotice, previewName, stopPreview, onRenamed }: Pa
     const next = toPath(draft, kind, extOf(from));
     if (next && next !== from) {
       if (assets.some((a) => a.name === next)) {
-        setNotice(`「${next}」はもうあるよ。ちがう名前にしてね。`);
+        setNotice(t.editor.notices.duplicateName(next));
       } else {
         if (previewName === from) stopPreview();
         if (await saveAssets(assets.map((a) => (a.name === from ? { ...a, name: next } : a)))) {

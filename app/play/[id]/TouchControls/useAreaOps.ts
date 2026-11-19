@@ -1,5 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { clamp, createTouchAreaId, DEFAULT_BUTTON_COLOR, MAX_AREAS, type TouchArea } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 type Params = {
   areas: TouchArea[];
@@ -15,6 +16,7 @@ type Params = {
 
 /** タッチボタンの編集(追加・コピー・貼り付け・位置や大きさの変更)。「削除」は、ドラッグも止める必要があるので index.tsx にある */
 export function useAreaOps({ areas, setAreas, selected, selectedId, setSelectedId, markAreasDirty, releaseAll, setOpen, setEditing }: Params) {
+  const { t } = useLocale();
   const [clipboardArea, setClipboardArea] = useState<TouchArea | null>(null);
   const [sizeDrafts, setSizeDrafts] = useState<{ id: string; w: string; h: string } | null>(null);
 
@@ -72,7 +74,7 @@ export function useAreaOps({ areas, setAreas, selected, selectedId, setSelectedI
     markAreasDirty();
     const next: TouchArea = {
       id: createTouchAreaId(),
-      label: `ボタン ${areas.length + 1}`,
+      label: t.touch.defaultButtonLabel(areas.length + 1),
       kind: "key",
       value: " ",
       x: 74,
@@ -100,7 +102,7 @@ export function useAreaOps({ areas, setAreas, selected, selectedId, setSelectedI
     const next: TouchArea = {
       ...clipboardArea,
       id: createTouchAreaId(),
-      label: `${clipboardArea.label} コピー`.slice(0, 16),
+      label: `${clipboardArea.label} ${t.touch.copySuffix}`.slice(0, 16),
       x: clamp(clipboardArea.x + 4, 0, 100 - clipboardArea.w),
       y: clamp(clipboardArea.y + 4, 0, 100 - clipboardArea.h),
     };

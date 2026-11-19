@@ -2,6 +2,7 @@
 
 import { useImperativeHandle, useRef, useState, type ChangeEvent, type Ref } from "react";
 import GameFrame, { type GameFrameHandle } from "@/app/_components/GameFrame";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import { useFullscreen } from "@/app/_components/useFullscreen";
 import type { Asset } from "@/lib/mks";
 
@@ -31,6 +32,7 @@ type ControlsProps = {
 
 // 実行・止める・フルスクリーン・音量(全画面のときも同じものを出す)
 function Controls({ fullscreen, volume, onRun, onStop, onToggleFullscreen, onVolumeChange }: ControlsProps) {
+  const { t } = useLocale();
   return (
     <div className={`kc-controls${fullscreen ? " mr-auto" : ""}`}>
       <button
@@ -40,10 +42,10 @@ function Controls({ fullscreen, volume, onRun, onStop, onToggleFullscreen, onVol
           e.currentTarget.blur();
         }}
       >
-        ▶ 実行
+        {t.editor.stage.run}
       </button>
       <button className="kc-btn kc-stop" onClick={onStop}>
-        ■ 止める
+        {t.editor.stage.stop}
       </button>
       <button
         className="kc-btn"
@@ -52,7 +54,7 @@ function Controls({ fullscreen, volume, onRun, onStop, onToggleFullscreen, onVol
           e.currentTarget.blur();
         }}
       >
-        {fullscreen ? "🗗 もどす" : "⛶ フルスクリーン"}
+        {fullscreen ? t.editor.stage.exitFullscreen : t.editor.stage.fullscreen}
       </button>
       <input
         type="range"
@@ -69,6 +71,7 @@ function Controls({ fullscreen, volume, onRun, onStop, onToggleFullscreen, onVol
 
 // 右側: 作品が動く画面とログ
 export default function Stage({ ref, onRun }: Props) {
+  const { t } = useLocale();
   const stageRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<GameFrameHandle>(null); // 作品を動かす iframe(隔離された画面)
   const logRef = useRef<HTMLPreElement>(null);
@@ -116,7 +119,7 @@ export default function Stage({ ref, onRun }: Props) {
   );
 
   return (
-    <section className="kc-stage" aria-label="ステージ">
+    <section className="kc-stage" aria-label={t.editor.stage.sectionAria}>
       {controls(false)}
 
       <div className={`kc-screen${pseudoFs ? " is-pseudo-fs" : ""}`} ref={stageRef}>
@@ -130,7 +133,7 @@ export default function Stage({ ref, onRun }: Props) {
           onClearLog={clearLog}
         />
       </div>
-      <h2 className="kc-side-title">ログ</h2>
+      <h2 className="kc-side-title">{t.editor.stage.logHeading}</h2>
       <pre ref={logRef} className="kc-log" />
     </section>
   );

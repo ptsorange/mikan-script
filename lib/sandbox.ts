@@ -79,8 +79,10 @@ export const SANDBOX_DOC = String.raw`<!doctype html>
     if (e.key && (e.key.indexOf("Arrow") === 0 || e.key === " ")) e.preventDefault();
   });
 
-  var logError = function (msg) { post({ type: "log", text: "エラー: " + msg + "\n" }); };
-  window.addEventListener("error", function (e) { logError(e.message || "不明なエラー"); });
+  var errPrefix = "エラー: ";
+  var unknownErr = "不明なエラー";
+  var logError = function (msg) { post({ type: "log", text: errPrefix + msg + "\n" }); };
+  window.addEventListener("error", function (e) { logError(e.message || unknownErr); });
   window.addEventListener("unhandledrejection", function (e) {
     var r = e.reason;
     var msg = r && r.message !== undefined ? r.message : String(r);
@@ -120,6 +122,10 @@ export const SANDBOX_DOC = String.raw`<!doctype html>
   async function run(m) {
     if (started) return; // 1 つの iframe では 1 回だけ。やり直しは iframe ごと作りなおす
     started = true;
+    if (m.lang === "en") {
+      errPrefix = "Error: ";
+      unknownErr = "Unknown error";
+    }
     try {
       await prepare(Array.isArray(m.assets) ? m.assets : []);
       var s = document.createElement("script");

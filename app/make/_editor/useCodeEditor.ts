@@ -14,6 +14,7 @@ import {
   type Candidate,
 } from "@/lib/editing";
 import { dataUrlToText, type Asset } from "@/lib/mks";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 // 入力候補(x, y は入力欄の中での位置)
 export type Suggest = {
@@ -35,6 +36,7 @@ type Params = {
 
 // コード入力欄の動き: スクロール同期・カーソル位置・キー操作・入力候補・ブロックの挿入
 export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
+  const { locale } = useLocale();
   const editorRef = useRef<HTMLTextAreaElement>(null);
   // 色分け表示・行番号の「中身」。入力欄のスクロール量だけ transform で動かして重ねる
   const hlRef = useRef<HTMLSpanElement>(null);
@@ -155,7 +157,8 @@ export function useCodeEditor({ code, onCodeChange, assets, onRun }: Params) {
       (path) => {
         const a = assets.find((x) => x.name === path);
         return a ? dataUrlToText(a.data) : undefined;
-      }
+      },
+      locale
     );
     if (!res) return setSuggest(null);
 

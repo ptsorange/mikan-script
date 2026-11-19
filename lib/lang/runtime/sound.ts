@@ -45,7 +45,7 @@ const playSound = (name, volume = 1, loop = false) => {
     audio.addEventListener("ended", () => s.end(false));
     const fail = () => {
       if (!__sounds.has(s)) return;
-      addLog("「" + name + "」を鳴らせなかったよ。\\n");
+      addLog(__lang === "en" ? ('Could not play "' + name + '".\\n') : ("「" + name + "」を鳴らせなかったよ。\\n"));
       s.end(false);
     };
     audio.addEventListener("error", fail);

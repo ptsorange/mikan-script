@@ -2,6 +2,7 @@
 
 import type { ChangeEvent } from "react";
 import { hasConfigMeta, KINDS, KIND_LIST, type Asset, type Kind, type Meta } from "@/lib/mks";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import type { Panel } from "./panels";
 import { assetBytes, fmtSize } from "./utils";
 
@@ -22,6 +23,7 @@ type Props = {
 
 // エクスプローラー: 「書き出し」で作られる project.mks (zip) の中身
 export default function ExplorerPanel(p: Props) {
+  const { t } = useLocale();
   const { assets, byKind, meta, thumbnail, codeBytes, closed } = p;
   const total = codeBytes + assets.reduce((sum, a) => sum + assetBytes(a), 0);
   const hasConfig = hasConfigMeta(meta);
@@ -56,14 +58,14 @@ export default function ExplorerPanel(p: Props) {
 
   return (
     <>
-      <h2 className="kc-side-title">エクスプローラー</h2>
+      <h2 className="kc-side-title">{t.editor.explorer.title}</h2>
 
       {folderRow("root", "project.mks", fileCount)}
       {!closed.root && (
         <ul className="kc-files">
           {hasConfig && (
             <li className="kc-file">
-              <button className="kc-file-main" title="クリックで作品の情報を開く" onClick={() => p.onShowPanel("info")}>
+              <button className="kc-file-main" title={t.editor.explorer.openInfoTitle} onClick={() => p.onShowPanel("info")}>
                 <span></span>
                 <span>config.json</span>
               </button>
@@ -71,7 +73,7 @@ export default function ExplorerPanel(p: Props) {
           )}
           {thumbnail && (
             <li className="kc-file">
-              <button className="kc-file-main" title="クリックで作品の情報を開く" onClick={() => p.onShowPanel("info")}>
+              <button className="kc-file-main" title={t.editor.explorer.openInfoTitle} onClick={() => p.onShowPanel("info")}>
                 <span></span>
                 <span>thumbnail.png</span>
               </button>
@@ -84,7 +86,7 @@ export default function ExplorerPanel(p: Props) {
                 <li className="kc-file">
                   <button
                     className="kc-file-main"
-                    title="クリックで、メインのコードをエディタで開く"
+                    title={t.editor.explorer.openMainTitle}
                     onClick={() => {
                       p.onOpenFile(null);
                       p.onFocusEditor();
@@ -99,7 +101,7 @@ export default function ExplorerPanel(p: Props) {
                   <li key={a.name} className="kc-file">
                     <button
                       className="kc-file-main"
-                      title="クリックで、エディタで開く"
+                      title={t.editor.explorer.openCodeTitle}
                       onClick={() => {
                         p.onOpenFile(a.name);
                         p.onFocusEditor();
@@ -125,7 +127,7 @@ export default function ExplorerPanel(p: Props) {
                     <li key={a.name} className="kc-file">
                       <button
                         className="kc-file-main"
-                        title={`クリックで、${kind === "texture" ? "テクスチャ" : "サウンド"}を開く`}
+                        title={t.editor.explorer.openKindTitle(kind === "texture" ? "texture" : "sound")}
                         onClick={() => p.onShowPanel(kind)}
                       >
                         <span></span>
@@ -142,13 +144,15 @@ export default function ExplorerPanel(p: Props) {
       )}
 
       <p className="kc-tip">
-        「書き出し」を押すと、この中身が <b>project.mks</b>(zip)になるよ。ぜんぶで約 {fmtSize(total)}。
+        {t.editor.explorer.tipBefore}
+        <b>project.mks</b>
+        {t.editor.explorer.tipAfter(fmtSize(total))}
       </p>
       <button className="kc-add" onClick={p.onExport}>
-        💾 書き出し
+        {t.editor.explorer.exportBtn}
       </button>
       <label className="kc-import">
-        📂 読み込み
+        {t.editor.explorer.importBtn}
         <input className="kc-sr" type="file" accept=".mks" onChange={p.onImport} />
       </label>
     </>

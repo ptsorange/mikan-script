@@ -1,4 +1,5 @@
 import { splitCode, compile, RUNTIME } from "@/lib/lang";
+import type { Locale } from "@/lib/i18n";
 import { type Asset } from "./assets";
 import { toModuleSources } from "./codeFiles";
 
@@ -8,9 +9,10 @@ import { toModuleSources } from "./codeFiles";
    ここで作るのは「iframe の中で動かす JS の文字列」だけ(動かすのは lib/sandbox.ts の iframe)。
    iframe の中には id="gameScreen"(canvas) があり、ログや大きさの変更は
    window.__ms を通して親に postMessage で伝える。 */
-export const buildScript = (code: string, volume: number, assets: Asset[] = []) => {
+export const buildScript = (code: string, volume: number, assets: Asset[] = [], locale: Locale = "ja") => {
   const v = Number.isFinite(volume) ? Math.min(100, Math.max(0, volume)) : 100;
   return `(async () => {
+const __lang = ${JSON.stringify(locale)};
 const scriptVolume = ${v};
 const canvas = document.getElementById("gameScreen");
 const ctx = canvas.getContext("2d");
@@ -27,12 +29,12 @@ const setScreenSize = (w, h) => {
 };
 const __getTexture = (name) => {
   const img = window.__textures[name];
-  if (!img) addLog("「" + name + "」が見つからないよ。左の一覧と同じ名前か、たしかめてね。\\n");
+  if (!img) addLog(__lang === "en" ? ('"' + name + '" was not found. Check the filename in the sidebar.\\n') : ("「" + name + "」が見つからないよ。左の一覧と同じ名前か、たしかめてね。\\n"));
   return img;
 };
 const __getSound = (name) => {
   const url = window.__soundUrls[name];
-  if (!url) addLog("「" + name + "」が見つからないよ。左の一覧と同じ名前か、たしかめてね。\\n");
+  if (!url) addLog(__lang === "en" ? ('"' + name + '" was not found. Check the filename in the sidebar.\\n') : ("「" + name + "」が見つからないよ。左の一覧と同じ名前か、たしかめてね。\\n"));
   return url;
 };
 ${RUNTIME}
@@ -40,8 +42,8 @@ ${RUNTIME}
 window.setGlobalVolume = setGlobalVolume; // 親からの音量変更(postMessage)で使う
 setGlobalVolume(scriptVolume / 100);
 
-${compile(splitCode(code), [], toModuleSources(assets))}
+${compile(splitCode(code), [], toModuleSources(assets), locale)}
 })().catch((e) => {
-  if (e?.message !== "stopped") window.__ms.post({ type: "log", text: "エラー: " + (e?.message ?? e) + "\\n" });
+  if (e?.message !== "stopped") window.__ms.post({ type: "log", text: (${JSON.stringify(locale === "en" ? "Error: " : "エラー: ")}) + (e?.message ?? e) + "\\n" });
 });`;
 };

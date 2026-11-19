@@ -1,5 +1,6 @@
 /* ---------- トークン → JavaScript ---------- */
 
+import type { Locale } from "@/lib/i18n";
 import { callArgs, between } from "./helpers";
 import { collectExports, parseImports, resolveModules, type ImportDecl, type ModuleSources } from "./modules";
 import { MODULE_LIB } from "./runtime/modules";
@@ -89,7 +90,7 @@ const compileUnit = (lines: Token[][], variables: string[]) => {
     }
     const runJs = `
 await Promise.all(__scripts.map(f => f().catch(e => {
-  if (e.message !== "stopped") { console.error(e); addLog("エラー: " + e.message + "\\n"); }
+  if (e.message !== "stopped") { console.error(e); addLog((__lang === "en" ? "Error: " : "エラー: ") + e.message + "\\n"); }
 })));
 `;
     return js;
@@ -100,9 +101,9 @@ await Promise.all(__scripts.map(f => f().catch(e => {
 };
 
 // JavaScriptに変換する。sources には、import できるコードファイル(code/xxx.code)のソースを渡す
-export const compile = (lines: Token[][], variables: string[], sources: ModuleSources = {}): string => {
-  const mainImports = parseImports(lines, "main.code");
-  const { order, idOf } = resolveModules(mainImports, sources);
+export const compile = (lines: Token[][], variables: string[], sources: ModuleSources = {}, locale: Locale = "ja"): string => {
+  const mainImports = parseImports(lines, "main.code", locale);
+  const { order, idOf } = resolveModules(mainImports, sources, locale);
 
   // 先にファイルぜんぶを変換して、スプライトがあるかどうかを調べる
   const units = order.map((m) => ({ m, ...compileUnit(m.lines, []) }));
@@ -121,7 +122,7 @@ const draw = () => {
 `;
   const runJs =
     `await Promise.all(__scripts.map(f => f().catch(e => {
-  if (e.message !== "stopped") { console.error(e); addLog("エラー: " + e.message + "\\n"); }
+  if (e.message !== "stopped") { console.error(e); addLog((__lang === "en" ? "Error: " : "エラー: ") + e.message + "\\n"); }
 })));
 `;
 

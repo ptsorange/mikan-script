@@ -52,12 +52,12 @@ const __spriteBase = {
   // ---------- 効果(スクラッチの「〜の効果」) ----------
   setEffect(name, value = 0) {
     const k = __effectName(name);
-    if (!k) { addLog("「" + name + "」という効果はないよ。\\n"); return; }
+    if (!k) { addLog(__lang === "en" ? ('Unknown effect "' + name + '".\\n') : ("「" + name + "」という効果はないよ。\\n")); return; }
     this.effects[k] = Number(value) || 0;
   },
   changeEffect(name, delta = 0) {
     const k = __effectName(name);
-    if (!k) { addLog("「" + name + "」という効果はないよ。\\n"); return; }
+    if (!k) { addLog(__lang === "en" ? ('Unknown effect "' + name + '".\\n') : ("「" + name + "」という効果はないよ。\\n")); return; }
     this.effects[k] = (Number(this.effects[k]) || 0) + (Number(delta) || 0);
   },
   getEffect(name) {

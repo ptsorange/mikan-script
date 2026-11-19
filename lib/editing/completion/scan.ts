@@ -1,3 +1,4 @@
+import type { Locale } from "@/lib/i18n";
 import { normalizeModulePath } from "../../lang";
 
 /* ---------- コードの中から、名前を見つける ---------- */
@@ -30,16 +31,16 @@ export const scanImports = (code: string) => {
 };
 
 // コードファイルの一番上(行のいちばん左)にある、外から使える名前
-export const scanExports = (src: string): [string, string][] => {
+export const scanExports = (src: string, locale: Locale = "ja"): [string, string][] => {
   const out: [string, string][] = [];
   const re = new RegExp(
     `^(?:(?:function|関数)[ \\t]+(${ID})[ \\t]*\\(([^)\\n]*)\\)|(?:num|数|text|テキスト|let)[ \\t]+(${ID})|(?:sprite|スプライト)[ \\t]+(${ID}))`,
     "gmu"
   );
   for (const m of src.matchAll(re)) {
-    if (m[1]) out.push([m[1] + "(", `関数(${m[2].trim()})`]);
-    else if (m[3]) out.push([m[3], "変数"]);
-    else if (m[4]) out.push([m[4], "スプライト"]);
+    if (m[1]) out.push([m[1] + "(", locale === "en" ? `function(${m[2].trim()})` : `関数(${m[2].trim()})`]);
+    else if (m[3]) out.push([m[3], locale === "en" ? "variable" : "変数"]);
+    else if (m[4]) out.push([m[4], locale === "en" ? "sprite" : "スプライト"]);
   }
   return out;
 };

@@ -1,4 +1,5 @@
 import { MAX_AREAS, type TouchArea } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 type Props = {
   touchEnabled: boolean;
@@ -8,9 +9,11 @@ type Props = {
 
 /** パネルの上: タイトルと「タッチ操作を有効にする」、ボタンの数 */
 export default function PanelHead({ touchEnabled, changeTouchEnabled, areas }: Props) {
+  const { t } = useLocale();
+
   return (
     <div className="ms-touch-panel-head">
-      <strong>タッチ操作</strong>
+      <strong>{t.touch.panelTitle}</strong>
       <div className="ms-touch-panel-status">
         <label className="ms-touch-enable-toggle">
           <input
@@ -18,7 +21,7 @@ export default function PanelHead({ touchEnabled, changeTouchEnabled, areas }: P
             checked={touchEnabled}
             onChange={(event) => changeTouchEnabled(event.target.checked)}
           />
-          タッチ操作を有効にする
+          {t.touch.enableLabel}
         </label>
         <span>{areas.length}/{MAX_AREAS}</span>
       </div>

@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent } from "react";
 import { toThumbnail, EMPTY_META, type Meta } from "@/lib/mks";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import { META_KEY, THUMB_KEY } from "../_lib/storage";
 import { readAsDataUrl } from "../_lib/files";
 
@@ -11,6 +12,7 @@ type Params = {
 
 // 作品の情報: タイトル・作者・説明・サムネ
 export function useProjectInfo({ setNotice, capture }: Params) {
+  const { locale, t } = useLocale();
   const [meta, setMeta] = useState<Meta>(EMPTY_META);
   const [thumbnail, setThumbnail] = useState<string | null>(null);
 
@@ -21,7 +23,7 @@ export function useProjectInfo({ setNotice, capture }: Params) {
       try {
         localStorage.setItem(META_KEY, JSON.stringify(next));
       } catch {
-        setNotice("作品の情報を保存できませんでした。");
+        setNotice(t.editor.notices.metaSaveFailed);
       }
       return next;
     });
@@ -34,7 +36,7 @@ export function useProjectInfo({ setNotice, capture }: Params) {
       if (data) localStorage.setItem(THUMB_KEY, data);
       else localStorage.removeItem(THUMB_KEY);
     } catch {
-      setNotice("サムネイルを保存できませんでした。書き出しが終わるまで、このページを開いたままにしてください。");
+      setNotice(t.editor.notices.thumbSaveFailed);
     }
   };
 
@@ -43,9 +45,9 @@ export function useProjectInfo({ setNotice, capture }: Params) {
     e.target.value = "";
     if (!file) return;
     try {
-      saveThumbnail(await toThumbnail(await readAsDataUrl(file)));
+      saveThumbnail(await toThumbnail(await readAsDataUrl(file), 480, locale));
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "サムネイルを設定できませんでした。");
+      setNotice(err instanceof Error ? err.message : t.editor.notices.thumbSetFailed);
     }
   };
 
@@ -54,9 +56,9 @@ export function useProjectInfo({ setNotice, capture }: Params) {
     try {
       const shot = await capture();
       if (!shot) return;
-      saveThumbnail(await toThumbnail(shot));
+      saveThumbnail(await toThumbnail(shot, 480, locale));
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "サムネイルを設定できませんでした。");
+      setNotice(err instanceof Error ? err.message : t.editor.notices.thumbSetFailed);
     }
   };
 

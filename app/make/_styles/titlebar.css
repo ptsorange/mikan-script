@@ -2,7 +2,7 @@
 /* VS Code のタイトルバー: 左にアイコン、まん中にファイル名、右にヒント */
 .kc-top {
   display: grid;
-  grid-template-columns: auto 1fr auto auto auto;
+  grid-template-columns: auto 1fr auto auto auto auto;
   align-items: center;
   gap: 12px;
   height: 34px;

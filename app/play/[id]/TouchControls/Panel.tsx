@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { TouchArea } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import AreaFields from "./AreaFields";
 import AreaList from "./AreaList";
 import PanelActions from "./PanelActions";
@@ -63,8 +64,9 @@ export default function Panel({
   updateSelected,
   commitSize,
 }: Props) {
+  const { t } = useLocale();
   return (
-    <section className="ms-touch-panel" aria-label="タッチ操作の設定" onPointerDown={(event) => event.stopPropagation()}>
+    <section className="ms-touch-panel" aria-label={t.touch.panelAria} onPointerDown={(event) => event.stopPropagation()}>
       <PanelHead touchEnabled={touchEnabled} changeTouchEnabled={changeTouchEnabled} areas={areas} />
       <PanelActions
         areas={areas}
@@ -84,7 +86,7 @@ export default function Panel({
       />
       <PresetSection presetState={presetState} />
       {areas.length === 0 ? (
-        <p className="ms-touch-empty">「当たり判定を追加」からタッチボタンを作成できます。</p>
+        <p className="ms-touch-empty">{t.touch.empty}</p>
       ) : (
         <div className="ms-touch-editor">
           <AreaList areas={areas} selectedId={selectedId} setSelectedId={setSelectedId} />

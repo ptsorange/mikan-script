@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { actionLabel, type TouchArea } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import { dispatchTestInput } from "./dispatchTestInput";
 
 type DragState = {
@@ -21,9 +22,23 @@ type Params = {
 
 /** プレビューの操作。「配置」はドラッグで動かす、「テスト」は押している間だけゲームに入力を送る。Esc で閉じる処理もここ */
 export function usePreviewInput({ updateArea, setSelectedId, onClose }: Params) {
+  const { locale, t } = useLocale();
   const [testMode, setTestMode] = useState(false);
   const [pressedAreaIds, setPressedAreaIds] = useState<string[]>([]);
-  const [testMessage, setTestMessage] = useState("「テスト」に切り替えると、配置したボタンを実際に押して試せます。");
+  const [testMsgState, setTestMsgState] = useState<
+    | { type: "initial" }
+    | { type: "switched" }
+    | { type: "pressing"; label: string; action: string }
+    | { type: "released"; label: string; action: string }
+  >({ type: "initial" });
+  const testMessage =
+    testMsgState.type === "initial"
+      ? t.editor.touchModal.testInitial
+      : testMsgState.type === "switched"
+        ? t.editor.touchModal.testSwitched
+        : testMsgState.type === "pressing"
+          ? t.editor.touchModal.testPressing(testMsgState.label, testMsgState.action)
+          : t.editor.touchModal.testReleased(testMsgState.label, testMsgState.action);
   const dragRef = useRef<DragState | null>(null);
   const testPressRef = useRef<Map<number, TouchArea>>(new Map());
 
@@ -88,7 +103,7 @@ export function usePreviewInput({ updateArea, setSelectedId, onClose }: Params) 
 
     testPressRef.current.set(event.pointerId, area);
     setPressedAreaIds((current) => (current.includes(area.id) ? current : [...current, area.id]));
-    setTestMessage(`${area.label}（${actionLabel(area)}）を押しています`);
+    setTestMsgState({ type: "pressing", label: area.label, action: actionLabel(area, locale) });
     dispatchTestInput(area, true);
   };
 
@@ -102,7 +117,7 @@ export function usePreviewInput({ updateArea, setSelectedId, onClose }: Params) 
     if (!stillPressed) {
       setPressedAreaIds((current) => current.filter((id) => id !== area.id));
     }
-    setTestMessage(`${area.label}（${actionLabel(area)}）を離しました`);
+    setTestMsgState({ type: "released", label: area.label, action: actionLabel(area, locale) });
   };
 
   const releaseAllTestPresses = () => {
@@ -142,7 +157,7 @@ export function usePreviewInput({ updateArea, setSelectedId, onClose }: Params) 
   const switchToTest = () => {
     dragRef.current = null;
     setTestMode(true);
-    setTestMessage("ボタンを押している間、割り当てた入力を送ります。");
+    setTestMsgState({ type: "switched" });
   };
 
   return {

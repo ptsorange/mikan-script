@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import type { Asset } from "@/lib/mks";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 // サウンドパネルでの音の試し聞き
 export function useSoundPreview(setNotice: (msg: string) => void) {
+  const { t } = useLocale();
   const previewRef = useRef<HTMLAudioElement | null>(null);
   const [previewName, setPreviewName] = useState<string | null>(null); // 試し聞き中の音
 
@@ -26,7 +28,7 @@ export function useSoundPreview(setNotice: (msg: string) => void) {
     };
     audio.play().catch(() => {
       if (previewRef.current === audio) stopPreview();
-      setNotice("この音は鳴らせなかったよ。");
+      setNotice(t.editor.notices.soundPreviewFailed);
     });
   };
 

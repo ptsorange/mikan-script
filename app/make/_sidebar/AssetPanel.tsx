@@ -2,6 +2,7 @@
 
 import { useRef, type ChangeEvent } from "react";
 import { KINDS, kindOf, type Asset, type Kind } from "@/lib/mks";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 type Props = {
   kind: Exclude<Kind, "code">; // コードファイルは CodePanel
@@ -21,6 +22,7 @@ type Props = {
 
 // テクスチャ / サウンドのパネル
 export default function AssetPanel(p: Props) {
+  const { t } = useLocale();
   const { kind, files } = p;
   const isTexture = kind === "texture";
   const skipBlur = useRef(false); // Esc で取り消したときに、blur で確定されないようにする
@@ -38,7 +40,7 @@ export default function AssetPanel(p: Props) {
             value={p.draft}
             autoFocus
             spellCheck={false}
-            aria-label="あたらしい名前"
+            aria-label={t.editor.assets.newNameAria}
             onChange={(e) => p.onDraftChange(e.target.value)}
             onFocus={(e) => e.target.select()}
             onBlur={() => {
@@ -60,7 +62,7 @@ export default function AssetPanel(p: Props) {
           <>
             <button
               className="kc-file-main"
-              title="クリックで、コードに名前を入れる"
+              title={t.editor.assets.insertNameTitle}
               onClick={() => p.onInsertName(a.name)}
             >
               {k === "texture" ? (
@@ -76,8 +78,8 @@ export default function AssetPanel(p: Props) {
             {k === "sound" && (
               <button
                 className={`kc-icon-btn${playing ? " is-on" : ""}`}
-                aria-label={playing ? `${a.name} を止める` : `${a.name} を試しに聞く`}
-                title={playing ? "止める" : "試しに聞く"}
+                aria-label={playing ? t.editor.assets.stopAria(a.name) : t.editor.assets.previewAria(a.name)}
+                title={playing ? t.editor.assets.stopTitle : t.editor.assets.previewTitle}
                 onClick={() => p.onTogglePreview(a)}
               >
                 {playing ? "■" : "▶"}
@@ -85,12 +87,12 @@ export default function AssetPanel(p: Props) {
             )}
             <button
               className="kc-icon-btn"
-              aria-label={`${a.name} の名前を変える`}
+              aria-label={t.editor.assets.renameAria(a.name)}
               onClick={() => p.onStartRename(a.name)}
             >
               ✎
             </button>
-            <button className="kc-icon-btn" aria-label={`${a.name} を消す`} onClick={() => p.onRemove(a.name)}>
+            <button className="kc-icon-btn" aria-label={t.editor.assets.deleteAria(a.name)} onClick={() => p.onRemove(a.name)}>
               ✕
             </button>
           </>
@@ -101,12 +103,10 @@ export default function AssetPanel(p: Props) {
 
   return (
     <>
-      <h2 className="kc-side-title">{isTexture ? "テクスチャ" : "サウンド"}</h2>
+      <h2 className="kc-side-title">{isTexture ? t.editor.assets.textureTitle : t.editor.assets.soundTitle}</h2>
 
       {files.length === 0 ? (
-        <p className="kc-empty">
-          {isTexture ? "まだ画像がないよ。下のボタンで追加しよう。" : "まだ音がないよ。下のボタンで追加しよう。"}
-        </p>
+        <p className="kc-empty">{isTexture ? t.editor.assets.emptyTexture : t.editor.assets.emptySound}</p>
       ) : (
         <ul className="kc-files kc-flat">{files.map(renderFile)}</ul>
       )}
@@ -119,21 +119,21 @@ export default function AssetPanel(p: Props) {
           accept={isTexture ? "image/png" : "audio/*,.mp3,.wav,.ogg,.m4a"}
           onChange={p.onAddFiles}
         />
-        {isTexture ? "＋ 画像を追加" : "＋ 音を追加"}
+        {isTexture ? t.editor.assets.addTexture : t.editor.assets.addSound}
       </label>
 
       {isTexture ? (
         <p className="kc-tip">
-          名前をクリックすると、カーソルの場所に入るよ。
+          {t.editor.assets.textureTip}
           <code>{'sprite cat = makeSprite("texture/cat.png", 50, 50)'}</code>
         </p>
       ) : (
         <p className="kc-tip">
-          名前をクリックすると、カーソルの場所に入るよ。鳴らし方は 2 つ。
+          {t.editor.assets.soundTipIntro}
           <code>{'await playSound("sound/bgm.mp3")'}</code>
-          ↑ 音が終わるまで、次に進まない
+          {t.editor.assets.soundTipAwait}
           <code>{'playSound("sound/hit.wav")'}</code>
-          ↑ 鳴らしたら、すぐ次に進む
+          {t.editor.assets.soundTipFire}
         </p>
       )}
     </>

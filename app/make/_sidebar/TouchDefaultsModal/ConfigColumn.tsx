@@ -1,4 +1,5 @@
 import { actionLabel, MAX_AREAS } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import AreaFields from "./AreaFields";
 import PresetBox from "./PresetBox";
 import type { AreaEditor } from "./useAreaEditor";
@@ -12,6 +13,7 @@ type Props = {
 
 /** 右: ボタンの追加・コピー、共通設定、選んでいるボタンの詳細設定 */
 export default function ConfigColumn({ editor, presetState, removeSelected }: Props) {
+  const { locale, t } = useLocale();
   const {
     areas,
     selected,
@@ -36,10 +38,10 @@ export default function ConfigColumn({ editor, presetState, removeSelected }: Pr
           onClick={addArea}
           disabled={areas.length >= MAX_AREAS}
         >
-          ＋ 当たり判定を追加
+          {t.touch.addArea}
         </button>
         <button type="button" className="kc-btn kc-btn-muted" onClick={copySelected} disabled={!selected}>
-          ⧉ コピー
+          {t.touch.copy}
         </button>
         <button
           type="button"
@@ -47,17 +49,17 @@ export default function ConfigColumn({ editor, presetState, removeSelected }: Pr
           onClick={pasteArea}
           disabled={!clipboardArea || areas.length >= MAX_AREAS}
         >
-          ▣ 貼り付け
+          {t.touch.paste}
         </button>
       </div>
 
       <PresetBox presetState={presetState} />
 
       {areas.length === 0 ? (
-        <p className="kc-empty">当たり判定がまだありません。</p>
+        <p className="kc-empty">{t.editor.touchModal.emptyAreas}</p>
       ) : (
         <div className="kc-touch-editor-grid">
-          <div className="kc-touch-btn-list" aria-label="当たり判定一覧">
+          <div className="kc-touch-btn-list" aria-label={t.editor.touchModal.areaListAria}>
             {areas.map((area) => (
               <button
                 key={area.id}
@@ -66,7 +68,7 @@ export default function ConfigColumn({ editor, presetState, removeSelected }: Pr
                 onClick={() => setSelectedId(area.id)}
               >
                 <span>{area.label}</span>
-                <small>{actionLabel(area)}</small>
+                <small>{actionLabel(area, locale)}</small>
               </button>
             ))}
           </div>

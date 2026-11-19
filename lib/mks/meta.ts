@@ -1,4 +1,5 @@
 import type JSZip from "jszip";
+import type { Locale } from "@/lib/i18n";
 import { hasTouchControlsConfig, sanitizeTouchControls, type TouchControlsConfig } from "@/lib/touchControls";
 import { MIME, extOf } from "./assets";
 
@@ -72,7 +73,7 @@ export const findThumbnail = (zip: JSZip): { file: JSZip.JSZipObject; mime: stri
 };
 
 // 画像(data URL)を、サムネ用に小さくして PNG にする。透明なところは背景色でうめる
-export const toThumbnail = (src: string, maxWidth = 480): Promise<string> =>
+export const toThumbnail = (src: string, maxWidth = 480, locale: Locale = "ja"): Promise<string> =>
   new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -83,12 +84,12 @@ export const toThumbnail = (src: string, maxWidth = 480): Promise<string> =>
       c.width = w;
       c.height = h;
       const ctx = c.getContext("2d");
-      if (!ctx) return reject(new Error("画像を作成できませんでした"));
+      if (!ctx) return reject(new Error(locale === "en" ? "Could not create image" : "画像を作成できませんでした"));
       ctx.fillStyle = "#1d1f2e";
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
       resolve(c.toDataURL("image/png"));
     };
-    img.onerror = () => reject(new Error("画像を読み込めませんでした"));
+    img.onerror = () => reject(new Error(locale === "en" ? "Could not load image" : "画像を読み込めませんでした"));
     img.src = src;
   });

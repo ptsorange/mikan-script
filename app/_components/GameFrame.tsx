@@ -3,6 +3,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import { buildScript, kindOf, type Asset } from "@/lib/mks";
 import { SANDBOX_ATTR, SANDBOX_DOC } from "@/lib/sandbox";
+import { useLocale } from "./LocaleProvider";
 
 /* 作品を動かす画面。隔離された iframe(lib/sandbox.ts)の中でコードを動かす。
    「あそぶ」ページとエディタで共通。
@@ -53,17 +54,20 @@ const clampSize = (v: unknown) => {
 };
 
 export default function GameFrame({ ref, className, style, onLog, onClearLog, onSize }: Props) {
+  const { locale, t } = useLocale();
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const pending = useRef<{ js: string; assets: Asset[] } | null>(null);
+  const pending = useRef<{ js: string; assets: Asset[]; lang: string } | null>(null);
   const captures = useRef(new Map<number, (v: string | null) => void>());
   const captureId = useRef(0);
   const rate = useRef({ at: 0, count: 0 });
   const handlers = useRef({ onLog, onClearLog, onSize });
+  const localeRef = useRef({ locale, errorPrefix: t.gameFrame.errorPrefix });
   const [runId, setRunId] = useState(0); // 変えると iframe が作りなおされる
   const [size, setSize] = useState(DEFAULT_SIZE);
 
   useEffect(() => {
     handlers.current = { onLog, onClearLog, onSize };
+    localeRef.current = { locale, errorPrefix: t.gameFrame.errorPrefix };
   });
 
   const send = (message: Record<string, unknown>) =>
@@ -115,11 +119,12 @@ export default function GameFrame({ ref, className, style, onLog, onClearLog, on
       try {
         // コードファイル(code/*.code)は、ここで 1 本の JS にまとめる。iframe には画像と音だけ送る
         pending.current = {
-          js: buildScript(code, volume, assets),
+          js: buildScript(code, volume, assets, localeRef.current.locale),
           assets: assets.filter((a) => kindOf(a.name) !== "code"),
+          lang: localeRef.current.locale,
         };
       } catch (e) {
-        handlers.current.onLog?.("エラー: " + (e instanceof Error ? e.message : String(e)) + "\n");
+        handlers.current.onLog?.(localeRef.current.errorPrefix + (e instanceof Error ? e.message : String(e)) + "\n");
         return;
       }
       setSize(DEFAULT_SIZE);
@@ -180,7 +185,7 @@ export default function GameFrame({ ref, className, style, onLog, onClearLog, on
     const p = pending.current;
     if (!p) return;
     pending.current = null;
-    send({ type: "run", js: p.js, assets: p.assets });
+    send({ type: "run", js: p.js, assets: p.assets, lang: p.lang });
     frameRef.current?.focus();
   };
 
@@ -188,7 +193,7 @@ export default function GameFrame({ ref, className, style, onLog, onClearLog, on
     <iframe
       key={runId}
       ref={frameRef}
-      title="ゲーム画面"
+      title={t.gameFrame.title}
       className={className}
       // allow-same-origin は付けない(付けると、中のコードが親のクッキーや保存データに触れてしまう)
       sandbox={SANDBOX_ATTR}

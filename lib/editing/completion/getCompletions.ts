@@ -1,6 +1,15 @@
+import type { Locale } from "@/lib/i18n";
 import { commands } from "../../lang";
 import { isWord, lineStart, lineState } from "../shared";
-import { SNIPPETS, EFFECTS, EFFECT_CALL, FUNCS, SPRITE_MEMBERS, GROUP_MEMBERS, MOUSE_MEMBERS } from "./data";
+import {
+  SNIPPETS,
+  EFFECTS_BY_LOCALE,
+  EFFECT_CALL,
+  FUNCS_BY_LOCALE,
+  SPRITE_MEMBERS_BY_LOCALE,
+  GROUP_MEMBERS_BY_LOCALE,
+  MOUSE_MEMBERS_BY_LOCALE,
+} from "./data";
 import { IMPORT_PATH_TYPING, scanImports, scanExports, scanNames } from "./scan";
 import type { Candidate, Completion } from "./types";
 
@@ -28,12 +37,15 @@ export const getCompletions = (
   caret: number,
   assets: string[],
   force = false,
-  modules?: (path: string) => string | undefined // コードファイルの中身(「名前.」のあとの候補用)
+  modules?: (path: string) => string | undefined, // コードファイルの中身(「名前.」のあとの候補用)
+  locale: Locale = "ja"
 ): Completion | null => {
   const ls = lineStart(v, caret);
   const before = v.slice(ls, caret);
   const st = lineState(before);
   if (st.comment) return null;
+
+  const isEn = locale === "en";
 
   // 文字列の中: 画像・音のファイル名
   if (st.quote) {
@@ -43,16 +55,16 @@ export const getCompletions = (
     // setEffect("…") の中: 効果の名前(日本語で打っているときは日本語のまま入れる)
     if (EFFECT_CALL.test(before)) {
       const q = typed.toLowerCase();
-      const effectItems = EFFECTS
+      const effectItems = EFFECTS_BY_LOCALE[locale]
         .map((e) => {
-          const useJp = rank(e.jp, q) < rank(e.name, q);
-          return { e, useJp, r: Math.min(rank(e.name, q), rank(e.jp, q)) };
+          const useJp = !isEn && rank(e.jp, q) < rank(e.name, q);
+          return { e, useJp, r: Math.min(rank(e.name, q), isEn ? 99 : rank(e.jp, q)) };
         })
         .filter((x) => x.r < 99)
         .sort((a, b) => a.r - b.r)
         .map<Candidate>(({ e, useJp }) => ({
           label: useJp ? e.jp : e.name,
-          detail: (useJp ? e.name + ": " : e.jp + ": ") + e.detail,
+          detail: isEn ? e.detail : (useJp ? e.name + ": " : e.jp + ": ") + e.detail,
           kind: "member",
           body: useJp ? e.jp : e.name,
         }));
@@ -69,7 +81,12 @@ export const getCompletions = (
         .filter((x) => x.r < 99)
         .sort((x, y) => x.r - y.r || x.a.localeCompare(y.a))
         .slice(0, 8)
-        .map<Candidate>(({ a }) => ({ label: "/" + a, detail: "コード", kind: "file", body: "/" + a }));
+        .map<Candidate>(({ a }) => ({
+          label: "/" + a,
+          detail: isEn ? "script" : "コード",
+          kind: "file",
+          body: "/" + a,
+        }));
       if (!codeItems.length || (codeItems.length === 1 && codeItems[0].label === typed)) return null;
       return { from: ls + qi + 1, items: codeItems, typed };
     }
@@ -82,7 +99,7 @@ export const getCompletions = (
       .slice(0, 8)
       .map<Candidate>(({ a }) => ({
         label: a,
-        detail: a.startsWith("sound/") ? "音" : "画像",
+        detail: a.startsWith("sound/") ? (isEn ? "sound" : "音") : isEn ? "image" : "画像",
         kind: "file",
         body: a,
       }));
@@ -99,11 +116,11 @@ export const getCompletions = (
     const typed = dot[2];
     let list: [string, string][];
     const importedPath = scanImports(v).get(obj);
-    if (importedPath) list = scanExports(modules?.(importedPath) ?? "");
-    else if (obj === "mouse" || obj === "マウス") list = MOUSE_MEMBERS;
-    else if (names.groups.has(obj)) list = GROUP_MEMBERS;
-    else if (names.sprites.has(obj)) list = SPRITE_MEMBERS;
-    else list = [...SPRITE_MEMBERS, ...GROUP_MEMBERS];
+    if (importedPath) list = scanExports(modules?.(importedPath) ?? "", locale);
+    else if (obj === "mouse" || obj === "マウス") list = MOUSE_MEMBERS_BY_LOCALE[locale];
+    else if (names.groups.has(obj)) list = GROUP_MEMBERS_BY_LOCALE[locale];
+    else if (names.sprites.has(obj)) list = SPRITE_MEMBERS_BY_LOCALE[locale];
+    else list = [...SPRITE_MEMBERS_BY_LOCALE[locale], ...GROUP_MEMBERS_BY_LOCALE[locale]];
     const q = typed.toLowerCase();
     const items = list
       .map(([n, d]) => ({ n, d, r: q ? rank(n.replace("(", ""), q) : 1 }))
@@ -138,21 +155,39 @@ export const getCompletions = (
   };
 
   for (const k of KEYWORD_ITEMS.items) {
-    const jpMatch = k.jp !== undefined && rank(k.jp, q) < rank(k.en, q);
+    const jpMatch = !isEn && k.jp !== undefined && rank(k.jp, q) < rank(k.en, q);
     if (jpMatch) {
       // 日本語で打っているときは日本語のまま入れる
       const body = SNIPPETS[k.en] ? SNIPPETS[k.en].replace(new RegExp(`^${k.en}(?![\\p{L}\\p{N}_$])`, "u"), k.jp!) : k.jp!;
       push({ label: k.jp!, detail: k.en, kind: "kw", body }, k.jp!);
     } else {
-      push({ label: k.en, detail: k.jp ?? "", kind: /^[a-z]+$/.test(k.en) && SNIPPETS[k.en]?.includes("(") && !SNIPPETS[k.en].includes("{") ? "fn" : "kw", body: k.body }, k.en);
+      const kind =
+        /^[a-z]+$/.test(k.en) && SNIPPETS[k.en]?.includes("(") && !SNIPPETS[k.en].includes("{") ? "fn" : "kw";
+      push({ label: k.en, detail: isEn ? "" : (k.jp ?? ""), kind, body: k.body }, k.en);
     }
   }
-  for (const f of FUNCS) push({ label: f.name, detail: f.sig, kind: "fn", body: f.body }, f.name);
+  for (const f of FUNCS_BY_LOCALE[locale]) push({ label: f.name, detail: f.sig, kind: "fn", body: f.body }, f.name);
   for (const n of names.vars) {
     if (KEYWORD_ITEMS.names.has(n)) continue;
-    push({ label: n, detail: names.sprites.has(n) ? "スプライト" : "なまえ", kind: "var", body: n }, n);
+    push(
+      {
+        label: n,
+        detail: names.sprites.has(n) ? (isEn ? "sprite" : "スプライト") : isEn ? "name" : "name",
+        kind: "var",
+        body: n,
+      },
+      n
+    );
   }
-  push({ label: "mouse", detail: "マウス", kind: "kw", body: "mouse" }, "mouse", "マウス");
+  if (!isEn) {
+    for (const c of scored) {
+      if (c.c.kind === "var" && c.c.detail === "name") c.c.detail = "なまえ";
+    }
+  }
+  push(
+    { label: "mouse", detail: isEn ? "mouse" : "マウス", kind: "kw", body: "mouse" },
+    ...(isEn ? ["mouse"] : ["mouse", "マウス"])
+  );
 
   const seen = new Set<string>();
   const items = scored

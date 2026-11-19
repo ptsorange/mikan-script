@@ -10,6 +10,7 @@ import {
   type TouchArea,
   type TouchPreset,
 } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 type Params = {
   areas: TouchArea[];
@@ -19,10 +20,13 @@ type Params = {
 
 /** 「共通設定(プリセット)」を、保存したり読み込んだりする。ブラウザに保存される */
 export function usePresets({ areas, setAreas, setSelectedId }: Params) {
+  const { t } = useLocale();
   const [presets, setPresets] = useState<TouchPreset[]>(() => BUILTIN_PRESETS);
   const [presetsLoaded, setPresetsLoaded] = useState(false);
-  const [presetName, setPresetName] = useState("アクション操作");
+  const [presetNameDraft, setPresetNameDraft] = useState<string | null>(null);
   const [selectedPresetId, setSelectedPresetId] = useState(BUILTIN_PRESETS[0].id);
+  const presetName = presetNameDraft ?? t.touch.defaultPresetName;
+  const setPresetName = (next: string) => setPresetNameDraft(next);
 
   useEffect(() => {
     try {

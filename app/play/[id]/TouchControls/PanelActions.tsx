@@ -1,4 +1,5 @@
 import { MAX_AREAS, type TouchArea } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 type Props = {
   areas: TouchArea[];
@@ -34,20 +35,22 @@ export default function PanelActions({
   setEditing,
   releaseAll,
 }: Props) {
+  const { t } = useLocale();
+
   return (
     <div className="ms-touch-panel-actions">
       <button type="button" className="ms-btn ms-btn-green" onClick={addArea} disabled={areas.length >= MAX_AREAS}>
-        ＋ 当たり判定を追加
+        {t.touch.addArea}
       </button>
       <div className="ms-touch-copy-paste">
         <button type="button" className="ms-btn" onClick={copySelected} disabled={!selected}>
-          ⧉ コピー
+          {t.touch.copy}
         </button>
         <button type="button" className="ms-btn" onClick={pasteArea} disabled={!clipboardArea || areas.length >= MAX_AREAS}>
-          ▣ 貼り付け
+          {t.touch.paste}
         </button>
         <button type="button" className="ms-btn ms-btn-red ms-touch-close" aria-expanded={open} onClick={togglePanel}>
-          ✕ 操作設定を閉じる
+          {t.touch.closeSettings}
         </button>
       </div>
       {hasProjectDefault && (
@@ -57,7 +60,7 @@ export default function PanelActions({
           onClick={resetToProjectDefault}
           disabled={!hasCustomSettings}
         >
-          ↺ 作品のデフォルトに戻す
+          {t.touch.resetDefault}
         </button>
       )}
       <label className="ms-touch-edit-toggle">
@@ -69,7 +72,7 @@ export default function PanelActions({
             if (event.target.checked) releaseAll();
           }}
         />
-        配置を編集
+        {t.touch.editLayout}
       </label>
     </div>
   );

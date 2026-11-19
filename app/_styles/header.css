@@ -44,7 +44,24 @@
 }
 .ms-brand:focus-visible,
 .ms-nav-link:focus-visible,
+.ms-lang-btn:focus-visible,
 .ms-footer a:focus-visible {
   outline: 3px solid #fff;
   outline-offset: 2px;
+}
+.ms-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font: 600 12px var(--ui);
+  cursor: pointer;
+}
+.ms-lang-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--muted);
 }

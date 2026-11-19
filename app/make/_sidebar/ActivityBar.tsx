@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/app/_components/LocaleProvider";
 import { PANELS, ICONS, type Panel } from "./panels";
 
 type Props = {
@@ -9,10 +10,13 @@ type Props = {
 
 // 左端の縦バー(VS Code のアクティビティバー)
 export default function ActivityBar({ panel, onSelect }: Props) {
+  const { t } = useLocale();
+
   return (
-    <nav className="kc-activity" aria-label="サイドバーの切りかえ">
-      {PANELS.map(({ id, label }) => {
+    <nav className="kc-activity" aria-label={t.editor.activityAria}>
+      {PANELS.map(({ id }) => {
         const active = panel === id;
+        const label = t.editor.panels[id];
         return (
           <button
             key={id}

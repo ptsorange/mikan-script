@@ -1,3 +1,4 @@
+import type { Locale } from "@/lib/i18n";
 import { splitCode, type Token } from "./tokenizer";
 
 /* ---------- コードファイル(import) ----------
@@ -28,22 +29,42 @@ export type ImportDecl = { alias: string; path: string };
 const unquote = (t: string) =>
   /^["'`]/.test(t) ? (t.length > 1 && t.endsWith(t[0]) ? t.slice(1, -1) : t.slice(1)) : null;
 
-const IMPORT_FORM = 'import 名前 "/code/ファイル.code" の形で書いてね';
+const importForm = (locale: Locale) =>
+  locale === "en"
+    ? 'Use the form: import name "/code/file.code"'
+    : 'import 名前 "/code/ファイル.code" の形で書いてね';
 
-const parseImportLine = (head: string[], where: string): ImportDecl => {
+const parseImportLine = (head: string[], where: string, locale: Locale): ImportDecl => {
   const rest = head.slice(1);
   if (rest.length === 3 && rest[1] === "from") rest.splice(1, 1); // import 名前 from "パス" も書ける
   const fail = (msg: string): never => {
     throw new Error(`${where}: ${msg}`);
   };
-  if (rest.length < 1 || rest.length > 2) return fail(IMPORT_FORM);
+  const form = importForm(locale);
+  if (rest.length < 1 || rest.length > 2) return fail(form);
   const raw = unquote(rest[rest.length - 1]);
-  if (raw === null) return fail('ファイルの名前は "…" で囲んでね。' + IMPORT_FORM);
+  if (raw === null) {
+    return fail(
+      locale === "en"
+        ? `Wrap the file path in quotes "...". ${form}`
+        : 'ファイルの名前は "…" で囲んでね。' + form
+    );
+  }
   const path = normalizeModulePath(raw);
-  if (!path) return fail(`「${raw}」は、コードファイルの名前として使えないよ。` + IMPORT_FORM);
+  if (!path) {
+    return fail(
+      locale === "en"
+        ? `"${raw}" cannot be used as a code filename. ${form}`
+        : `「${raw}」は、コードファイルの名前として使えないよ。` + form
+    );
+  }
   const alias = rest.length === 2 ? rest[0] : path.slice("code/".length).replace(/\.code$/i, "");
   if (!ID_RE.test(alias)) {
-    return fail(`「${alias}」は、名前として使えないよ。名前をつけて import してね。` + IMPORT_FORM);
+    return fail(
+      locale === "en"
+        ? `"${alias}" cannot be used as an identifier. Give it an alias when importing. ${form}`
+        : `「${alias}」は、名前として使えないよ。名前をつけて import してね。` + form
+    );
   }
   return { alias, path };
 };
@@ -52,10 +73,16 @@ const headOf = (line: Token[]) => (Array.isArray(line[line.length - 1]) ? line.s
 const blockOf = (line: Token[]) => (Array.isArray(line[line.length - 1]) ? (line[line.length - 1] as Token[][]) : null);
 
 // いちばん上の import を集める。ブロックの中の import は、おしえてあげる
-export const parseImports = (lines: Token[][], where: string): ImportDecl[] => {
+export const parseImports = (lines: Token[][], where: string, locale: Locale = "ja"): ImportDecl[] => {
   const nested = (ls: Token[][]) => {
     for (const line of ls) {
-      if (line[0] === "import") throw new Error(`${where}: import は、いちばん上(ブロックの外)に書いてね`);
+      if (line[0] === "import") {
+        throw new Error(
+          locale === "en"
+            ? `${where}: Write import at the top level (outside blocks)`
+            : `${where}: import は、いちばん上(ブロックの外)に書いてね`
+        );
+      }
       const b = blockOf(line);
       if (b) nested(b);
     }
@@ -63,7 +90,7 @@ export const parseImports = (lines: Token[][], where: string): ImportDecl[] => {
   const out: ImportDecl[] = [];
   for (const line of lines) {
     const head = headOf(line);
-    if (head[0] === "import") out.push(parseImportLine(head, where));
+    if (head[0] === "import") out.push(parseImportLine(head, where, locale));
     else {
       const b = blockOf(line);
       if (b) nested(b);
@@ -96,7 +123,7 @@ export const collectExports = (lines: Token[][]) => {
 type ModuleUnit = { id: string; path: string; lines: Token[][]; imports: ImportDecl[] };
 
 // import をたどって、「先に読み込むもの」が前になる順に並べる
-export const resolveModules = (mainImports: ImportDecl[], sources: ModuleSources) => {
+export const resolveModules = (mainImports: ImportDecl[], sources: ModuleSources, locale: Locale = "ja") => {
   const order: ModuleUnit[] = [];
   const ids = new Map<string, string>();
   const visiting: string[] = [];
@@ -105,15 +132,22 @@ export const resolveModules = (mainImports: ImportDecl[], sources: ModuleSources
     if (ids.has(path)) return;
     const at = visiting.indexOf(path);
     if (at !== -1) {
-      throw new Error("import がぐるぐる回ってるよ: " + [...visiting.slice(at), path].join(" → "));
+      const cycle = [...visiting.slice(at), path].join(" → ");
+      throw new Error(
+        locale === "en" ? `Circular import detected: ${cycle}` : `import がぐるぐる回ってるよ: ${cycle}`
+      );
     }
     const src = sources[path];
     if (src === undefined) {
-      throw new Error(`「${path}」が見つからないよ。左のコード一覧と同じ名前か、たしかめてね。`);
+      throw new Error(
+        locale === "en"
+          ? `"${path}" was not found. Check the filename in the code files list.`
+          : `「${path}」が見つからないよ。左のコード一覧と同じ名前か、たしかめてね。`
+      );
     }
     visiting.push(path);
     const lines = splitCode(src);
-    const imports = parseImports(lines, path);
+    const imports = parseImports(lines, path, locale);
     imports.forEach((d) => visit(d.path));
     visiting.pop();
     const id = "__mod" + ids.size;

@@ -1,3 +1,5 @@
+import { MESSAGES, type Locale } from "@/lib/i18n";
+
 export type MouseButton = "left" | "middle" | "right";
 
 export type TouchArea = {
@@ -60,10 +62,23 @@ export const normalizeKey = (key: string) => (key === "Space" || key.toLowerCase
 
 export const keyLabel = (key: string) => (normalizeKey(key) === " " ? "Space" : key);
 
-export const mouseLabel = (button: string) => MOUSE_LABELS[button as MouseButton] ?? button;
+export const mouseLabel = (button: string, locale: Locale = "ja") => {
+  const m = MESSAGES[locale].touch;
+  if (button === "left") return m.mouseLeft;
+  if (button === "middle") return m.mouseMiddle;
+  if (button === "right") return m.mouseRight;
+  return MOUSE_LABELS[button as MouseButton] ?? button;
+};
 
-export const actionLabel = (area: Pick<TouchArea, "kind" | "value">) =>
-  area.kind === "key" ? `キー: ${keyLabel(area.value)}` : `マウス: ${mouseLabel(area.value)}`;
+export const actionLabel = (area: Pick<TouchArea, "kind" | "value">, locale: Locale = "ja") => {
+  const m = MESSAGES[locale].touch;
+  return area.kind === "key"
+    ? `${m.keyPrefix}: ${keyLabel(area.value)}`
+    : `${m.mousePrefix}: ${mouseLabel(area.value, locale)}`;
+};
+
+export const presetDisplayName = (preset: TouchPreset, locale: Locale = "ja") =>
+  preset.id === BUILTIN_PRESETS[0].id ? MESSAGES[locale].touch.builtinPresetName : preset.name;
 
 export const isHexColor = (value: unknown): value is string =>
   typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
@@ -151,7 +166,7 @@ export function sanitizePresets(value: unknown): TouchPreset[] {
     return [
       {
         id: preset.id.slice(0, 80),
-        name: preset.name.trim().slice(0, 24) || "プリセット",
+        name: preset.name.trim().slice(0, 24) || "Preset",
         areas: sanitizeAreas(preset.areas),
       },
     ];

@@ -8,9 +8,11 @@ import {
   type TouchArea,
   type TouchControlsConfig,
 } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 /** タッチボタン(当たり判定)の一覧と、選んでいるボタンの編集(追加・コピー・貼り付け・大きさ など) */
 export function useAreaEditor(initialConfig?: TouchControlsConfig) {
+  const { t } = useLocale();
   const [areas, setAreas] = useState<TouchArea[]>(() => sanitizeAreas(initialConfig?.areas ?? []));
   const [selectedId, setSelectedId] = useState<string | null>(() => initialConfig?.areas[0]?.id ?? null);
   const [clipboardArea, setClipboardArea] = useState<TouchArea | null>(null);
@@ -66,7 +68,7 @@ export function useAreaEditor(initialConfig?: TouchControlsConfig) {
     if (areas.length >= MAX_AREAS) return;
     const next: TouchArea = {
       id: createTouchAreaId(),
-      label: `ボタン ${areas.length + 1}`,
+      label: t.touch.defaultButtonLabel(areas.length + 1),
       kind: "key",
       value: " ",
       x: 74,
@@ -90,7 +92,7 @@ export function useAreaEditor(initialConfig?: TouchControlsConfig) {
     const next: TouchArea = {
       ...clipboardArea,
       id: createTouchAreaId(),
-      label: `${clipboardArea.label} コピー`.slice(0, 16),
+      label: `${clipboardArea.label} ${t.touch.copySuffix}`.slice(0, 16),
       x: clamp(clipboardArea.x + 4, 0, 100 - clipboardArea.w),
       y: clamp(clipboardArea.y + 4, 0, 100 - clipboardArea.h),
     };

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { highlight } from "./highlight";
 import type { CodeEditorApi } from "./useCodeEditor";
+import { useLocale } from "@/app/_components/LocaleProvider";
 
 export type EditorTab = { id: string; label: string; closable: boolean };
 
@@ -38,31 +39,32 @@ export default function CodeEditor({
     acceptSuggest,
   },
 }: Props) {
+  const { t } = useLocale();
   const lineCount = useMemo(() => code.split("\n").length, [code]);
   const highlighted = useMemo(() => highlight(code), [code]);
 
   return (
-    <section className="kc-editor" aria-label="プログラム">
+    <section className="kc-editor" aria-label={t.editor.codeEditor.sectionAria}>
       <div className="kc-tabs" role="tablist">
-        {tabs.map((t) => (
-          <div key={t.id} className={`kc-tab${t.id === activeTab ? " is-active" : ""}`}>
+        {tabs.map((tab) => (
+          <div key={tab.id} className={`kc-tab${tab.id === activeTab ? " is-active" : ""}`}>
             <button
               className="kc-tab-main"
               role="tab"
-              aria-selected={t.id === activeTab}
-              title={t.id}
+              aria-selected={tab.id === activeTab}
+              title={tab.id}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onSelectTab(t.id)}
+              onClick={() => onSelectTab(tab.id)}
             >
               <span className="kc-dot" />
-              {t.label}
+              {tab.label}
             </button>
-            {t.closable && (
+            {tab.closable && (
               <button
                 className="kc-tab-close"
-                aria-label={`${t.label} を閉じる`}
+                aria-label={t.editor.codeEditor.closeTabAria(tab.label)}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onCloseTab(t.id)}
+                onClick={() => onCloseTab(tab.id)}
               >
                 ✕
               </button>
@@ -71,11 +73,11 @@ export default function CodeEditor({
         ))}
         <button
           className="kc-btn kc-tool"
-          title="コードを整える(Shift + Alt + F)"
+          title={t.editor.codeEditor.formatTitle}
           onMouseDown={(e) => e.preventDefault()}
           onClick={runFormat}
         >
-          ✨ 整形
+          {t.editor.codeEditor.formatBtn}
         </button>
       </div>
       <div className="kc-code">
@@ -100,7 +102,7 @@ export default function CodeEditor({
             autoCapitalize="off"
             autoComplete="off"
             autoCorrect="off"
-            aria-label="プログラムを書く場所"
+            aria-label={t.editor.codeEditor.textareaAria}
             onChange={onInput}
             onCompositionEnd={onCompositionEnd}
             onKeyDown={onKeyDown}
@@ -113,7 +115,7 @@ export default function CodeEditor({
             <ul
               className="kc-suggest"
               role="listbox"
-              aria-label="入力の候補"
+              aria-label={t.editor.codeEditor.suggestAria}
               style={{ left: suggest.x, top: suggest.y }}
               ref={(el) => el?.querySelector(".is-on")?.scrollIntoView({ block: "nearest" })}
             >

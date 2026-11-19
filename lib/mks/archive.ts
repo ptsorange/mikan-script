@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import type { Locale } from "@/lib/i18n";
 import { getProjectPublicUrl } from "./supabase";
 import { type Asset, KINDS, MIME, extOf, kindOf, toPath } from "./assets";
 import { CONFIG_NAME, type Meta, THUMBNAIL_NAME, findThumbnail, hasConfigMeta, readConfig, serializeMeta } from "./meta";
@@ -31,12 +32,15 @@ export const buildMks = async (
 };
 
 export const parseMks = async (
-  input: Blob | ArrayBuffer | Uint8Array
+  input: Blob | ArrayBuffer | Uint8Array,
+  locale: Locale = "ja"
 ): Promise<{ code: string; assets: Asset[]; meta: Meta; thumbnail: string | null }> => {
   const zip = await JSZip.loadAsync(input);
 
   const codeFile = zip.file("code/main.mjs");
-  if (!codeFile) throw new Error("code/main.mjs が見つかりません");
+  if (!codeFile) {
+    throw new Error(locale === "en" ? "code/main.mjs not found" : "code/main.mjs が見つかりません");
+  }
   const code = await codeFile.async("string");
 
   const meta = await readConfig(zip);
@@ -60,12 +64,12 @@ export const parseMks = async (
 };
 
 // Supabase Storage から作品を取ってきて読み込む
-export const fetchProject = async (id: string, version?: string) => {
+export const fetchProject = async (id: string, version?: string, locale: Locale = "ja") => {
   // 一覧の id は通常拡張子なし。拡張子付きで渡されても二重に付けない。
   const fileName = /\.mks$/i.test(id) ? id : `${id}.mks`;
   const res = await fetch(getProjectPublicUrl(fileName, version));
   if (!res.ok) {
-    throw new Error(`作品の取得に失敗しました (${res.status})`);
+    throw new Error(locale === "en" ? `Failed to load project (${res.status})` : `作品の取得に失敗しました (${res.status})`);
   }
-  return parseMks(await res.arrayBuffer());
+  return parseMks(await res.arrayBuffer(), locale);
 };

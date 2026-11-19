@@ -1,7 +1,10 @@
+import { presetDisplayName } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import type { PresetState } from "./usePresets";
 
 /** 共通設定(プリセット)の、ロードと保存 */
 export default function PresetBox({ presetState }: { presetState: PresetState }) {
+  const { locale, t } = useLocale();
   const { presets, presetName, setPresetName, selectedPresetId, setSelectedPresetId, savePreset, loadPreset } = presetState;
 
   return (
@@ -10,12 +13,12 @@ export default function PresetBox({ presetState }: { presetState: PresetState })
         <select
           value={selectedPresetId}
           onChange={(e) => setSelectedPresetId(e.target.value)}
-          aria-label="保存済みの共通設定"
+          aria-label={t.editor.touchModal.presetSelectAria}
         >
-          <option value="">プリセットを選択…</option>
+          <option value="">{t.editor.touchModal.presetSelectPlaceholder}</option>
           {presets.map((preset) => (
             <option key={preset.id} value={preset.id}>
-              {preset.name}
+              {presetDisplayName(preset, locale)}
             </option>
           ))}
         </select>
@@ -25,7 +28,7 @@ export default function PresetBox({ presetState }: { presetState: PresetState })
           onClick={loadPreset}
           disabled={!presets.some((preset) => preset.id === selectedPresetId)}
         >
-          ロード
+          {t.editor.touchModal.presetLoad}
         </button>
       </div>
       <div className="kc-touch-preset-row">
@@ -33,8 +36,8 @@ export default function PresetBox({ presetState }: { presetState: PresetState })
           value={presetName}
           maxLength={24}
           onChange={(e) => setPresetName(e.target.value)}
-          placeholder="共通設定の名前"
-          aria-label="共通設定の名前"
+          placeholder={t.editor.touchModal.presetNamePlaceholder}
+          aria-label={t.editor.touchModal.presetNameAria}
         />
         <button
           type="button"
@@ -42,7 +45,7 @@ export default function PresetBox({ presetState }: { presetState: PresetState })
           onClick={savePreset}
           disabled={!presetName.trim()}
         >
-          共通保存
+          {t.editor.touchModal.presetSave}
         </button>
       </div>
     </div>

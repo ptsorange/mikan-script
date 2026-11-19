@@ -2,6 +2,7 @@
 
 import { useRef, type ChangeEvent } from "react";
 import { KINDS, type Asset } from "@/lib/mks";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import { fmtSize, assetBytes } from "./utils";
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
 
 // コードファイルのパネル: 作る・アップロード・開く・名前変更・削除
 export default function CodePanel(p: Props) {
+  const { t } = useLocale();
   const skipBlur = useRef(false); // Esc で取り消したときに、blur で確定されないようにする
 
   const renderFile = (a: Asset) => {
@@ -34,7 +36,7 @@ export default function CodePanel(p: Props) {
             value={p.draft}
             autoFocus
             spellCheck={false}
-            aria-label="あたらしい名前"
+            aria-label={t.editor.codePanel.newNameAria}
             onChange={(e) => p.onDraftChange(e.target.value)}
             onFocus={(e) => e.target.select()}
             onBlur={() => {
@@ -54,7 +56,7 @@ export default function CodePanel(p: Props) {
           />
         ) : (
           <>
-            <button className="kc-file-main" title="クリックで、エディタで開く" onClick={() => p.onOpen(a.name)}>
+            <button className="kc-file-main" title={t.editor.codePanel.openTitle} onClick={() => p.onOpen(a.name)}>
               <span className="kc-snd-ico kc-ico-code" aria-hidden="true">
                 {"</>"}
               </span>
@@ -63,20 +65,24 @@ export default function CodePanel(p: Props) {
             </button>
             <button
               className="kc-icon-btn"
-              aria-label={`${a.name} を import する行を、メインのコードに入れる`}
-              title="import の行を、メインのコードに入れる"
+              aria-label={t.editor.codePanel.insertImportAria(a.name)}
+              title={t.editor.codePanel.insertImportTitle}
               onClick={() => p.onInsertImport(a.name)}
             >
               ⤓
             </button>
             <button
               className="kc-icon-btn"
-              aria-label={`${a.name} の名前を変える`}
+              aria-label={t.editor.codePanel.renameAria(a.name)}
               onClick={() => p.onStartRename(a.name)}
             >
               ✎
             </button>
-            <button className="kc-icon-btn" aria-label={`${a.name} を消す`} onClick={() => p.onRemove(a.name)}>
+            <button
+              className="kc-icon-btn"
+              aria-label={t.editor.codePanel.deleteAria(a.name)}
+              onClick={() => p.onRemove(a.name)}
+            >
               ✕
             </button>
           </>
@@ -87,28 +93,29 @@ export default function CodePanel(p: Props) {
 
   return (
     <>
-      <h2 className="kc-side-title">コードファイル</h2>
+      <h2 className="kc-side-title">{t.editor.codePanel.title}</h2>
 
       {p.files.length === 0 ? (
-        <p className="kc-empty">まだコードファイルがないよ。下のボタンで作ったり、アップロードしたりしよう。</p>
+        <p className="kc-empty">{t.editor.codePanel.empty}</p>
       ) : (
         <ul className="kc-files kc-flat">{p.files.map(renderFile)}</ul>
       )}
 
       <button className="kc-add kc-add-code" onClick={p.onCreate}>
-        ＋ 新しいコードを作る
+        {t.editor.codePanel.createBtn}
       </button>
       <label className="kc-add kc-add-code kc-add-alt">
         <input className="kc-sr" type="file" multiple accept=".code,.txt,.js,.mjs,text/plain" onChange={p.onAddFiles} />
-        ⭱ コードをアップロード
+        {t.editor.codePanel.uploadBtn}
       </label>
 
       <p className="kc-tip">
-        ファイルをクリックすると、エディタで開くよ。⤓ を押すと、import の行がメインのコードに入るよ。
+        {t.editor.codePanel.tipLine1}
         <code>{'import physic "/code/physic.code"'}</code>
         <code>{"physic.spawnBox(10, 10, 10, 10)"}</code>
-        ファイルの一番上(ブロックの外)に書いた function / num / text / sprite が、「名前.」のあとで使えるよ。
-        値を受け取るときは <b>await</b> をつけてね。
+        {t.editor.codePanel.tipLine2Before}
+        <b>{t.editor.codePanel.tipLine2Bold}</b>
+        {t.editor.codePanel.tipLine2After}
       </p>
     </>
   );

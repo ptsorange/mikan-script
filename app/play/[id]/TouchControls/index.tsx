@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { hasTouchControlsConfig, sanitizeAreas } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import Panel from "./Panel";
 import TouchLayer from "./TouchLayer";
 import { enabledStorageKey, storageKey } from "./storage";
@@ -28,6 +29,7 @@ export default function TouchControls({
   isFullscreen = false,
   onExitFullscreen,
 }: Props) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
 
@@ -171,14 +173,14 @@ export default function TouchControls({
                 event.currentTarget.blur();
               }}
             >
-              🎮 タッチ操作設定
+              {t.touch.toggleButton}
             </button>,
             toggleHost,
           )
         : !open && (
             <div className="ms-touch-controls">
               <button type="button" className="ms-touch-toggle" aria-expanded={open} onClick={togglePanel}>
-                🎮 タッチ操作設定
+                {t.touch.toggleButton}
               </button>
             </div>
           )}

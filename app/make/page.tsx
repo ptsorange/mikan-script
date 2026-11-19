@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import { dataUrlToText, KINDS } from "@/lib/mks";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import "./editor.css";
 import { useCode } from "./_hooks/useCode";
 import { useSoundPreview } from "./_hooks/useSoundPreview";
@@ -32,12 +33,13 @@ const MAIN_TAB = "main"; // エディタのタブ: メインのコード(それ�
      _lib/      保存(IndexedDB / localStorage)などの道具 */
 
 export default function Editor() {
+  const { t } = useLocale();
   const stageRef = useRef<StageHandle>(null); // 作品を動かす画面
   const [notice, setNotice] = useState("");
   const [panel, setPanel] = useState<Panel | null>("texture"); // 開いているパネル(null = 閉じている)
   const [closed, setClosed] = useState<Record<string, boolean>>({}); // 閉じているフォルダ
 
-  const { sidebarWidth, startResizing } = useSidebarResize();
+  const { sidebarWidth, startResizing } = useSidebarResize(400);
   const { inputCode, setInputCode, updateCode } = useCode();
   const { previewName, stopPreview, togglePreview } = useSoundPreview(setNotice);
   const [tabs, setTabs] = useState<string[]>([MAIN_TAB]); // エディタで開いているファイル
@@ -164,7 +166,7 @@ export default function Editor() {
       >
         <ActivityBar panel={panel} onSelect={clickActivity} />
 
-        <aside className={`kc-explorer${panel ? "" : " is-closed"}`} aria-label="サイドバー">
+        <aside className={`kc-explorer${panel ? "" : " is-closed"}`} aria-label={t.editor.sidebarAria}>
           {panel === "explorer" && (
             <ExplorerPanel
               assets={assets}

@@ -1,3 +1,7 @@
+"use client";
+
+import { useLocale } from "@/app/_components/LocaleProvider";
+
 type Props = {
   cursor: { line: number; col: number };
   textureCount: number;
@@ -7,15 +11,13 @@ type Props = {
 
 // 下のバー: カーソルの位置・画像と音とコードファイルの数
 export default function StatusBar({ cursor, textureCount, soundCount, codeCount }: Props) {
+  const { t } = useLocale();
+
   return (
     <footer className="kc-status">
-      <span>
-        {cursor.line} 行目、{cursor.col} 文字目
-      </span>
-      <span>自動で保存されます</span>
-      <span>
-        画像 {textureCount} 枚 ・ 音 {soundCount} 個 ・ コード {codeCount} 個
-      </span>
+      <span>{t.editor.status.cursor(cursor.line, cursor.col)}</span>
+      <span>{t.editor.status.autoSave}</span>
+      <span>{t.editor.status.counts(textureCount, soundCount, codeCount)}</span>
     </footer>
   );
 }

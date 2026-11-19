@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent } from "react";
 import type { Meta } from "@/lib/mks";
 import { hasTouchControlsConfig, sanitizeTouchControls } from "@/lib/touchControls";
+import { useLocale } from "@/app/_components/LocaleProvider";
 import TouchDefaultsModal from "./TouchDefaultsModal";
 
 type Props = {
@@ -25,6 +26,7 @@ export default function InfoPanel({
   onPick,
   onClear,
 }: Props) {
+  const { t } = useLocale();
   const [touchModalOpen, setTouchModalOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -46,55 +48,55 @@ export default function InfoPanel({
 
   return (
     <>
-      <h2 className="kc-side-title">作品の情報</h2>
+      <h2 className="kc-side-title">{t.editor.info.title}</h2>
 
       <label className="kc-field">
-        <span>タイトル</span>
+        <span>{t.editor.info.titleLabel}</span>
         <input
           value={meta.title}
           maxLength={60}
-          placeholder="例: みかん回避ゲーム"
+          placeholder={t.editor.info.titlePlaceholder}
           onChange={(e) => onMetaChange("title", e.target.value)}
         />
       </label>
       <label className="kc-field">
-        <span>説明</span>
+        <span>{t.editor.info.descLabel}</span>
         <textarea
           value={meta.description}
           maxLength={200}
           rows={4}
-          placeholder="ゲームの内容や遊び方"
+          placeholder={t.editor.info.descPlaceholder}
           onChange={(e) => onMetaChange("description", e.target.value)}
         />
         <span className="kc-count">{meta.description.length} / 200</span>
       </label>
 
       <div className="kc-field">
-        <span>サムネイル</span>
+        <span>{t.editor.info.thumbLabel}</span>
         <div className="kc-thumb-box">
           {thumbnail ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={thumbnail} alt="サムネイル" />
+            <img src={thumbnail} alt={t.editor.info.thumbAlt} />
           ) : (
-            <p className="kc-empty">未設定</p>
+            <p className="kc-empty">{t.editor.info.thumbEmpty}</p>
           )}
         </div>
       </div>
       <button className="kc-add" onClick={onCapture}>
-        📷 実行画面をサムネイルに設定
+        {t.editor.info.captureBtn}
       </button>
       <label className="kc-add kc-add-sound">
         <input className="kc-sr" type="file" accept="image/*" onChange={onPick} />
-        ＋ 画像を選択
+        {t.editor.info.pickBtn}
       </label>
       {thumbnail && (
         <button className="kc-add kc-add-sound" onClick={onClear}>
-          ✕ サムネイルを削除
+          {t.editor.info.clearBtn}
         </button>
       )}
 
       <div className="kc-field kc-touch-info-section">
-        <span>タッチ操作（デフォルト）</span>
+        <span>{t.editor.info.touchLabel}</span>
         <div className="kc-touch-summary">
           <label className="kc-touch-check">
             <input
@@ -110,20 +112,20 @@ export default function InfoPanel({
                 )
               }
             />
-            開始時に有効にする
+            {t.editor.info.touchEnableOnStart}
           </label>
           <p className="kc-touch-summary-text">
             {touchAreas.length > 0
-              ? `ボタン ${touchAreas.length} 個を設定済み`
+              ? t.editor.info.touchConfigured(touchAreas.length)
               : touchEnabled
-                ? "未設定（ボタンなし）"
-                : "未設定（デフォルト無効）"}
+                ? t.editor.info.touchEmptyEnabled
+                : t.editor.info.touchEmptyDisabled}
           </p>
           {touchAreas.length > 0 && (
-            <div className="kc-touch-tags" aria-label="設定済みのボタン">
+            <div className="kc-touch-tags" aria-label={t.editor.info.touchTagsAria}>
               {touchAreas.map((area) => (
                 <span key={area.id} className="kc-touch-tag">
-                  {area.label || "(無名)"}
+                  {area.label || t.editor.info.unnamed}
                 </span>
               ))}
             </div>
@@ -131,7 +133,7 @@ export default function InfoPanel({
         </div>
       </div>
       <button type="button" className="kc-add kc-add-code" onClick={openTouchEditor}>
-        {touchAreas.length > 0 ? "🎮 タッチ操作を編集" : "🎮 タッチ操作を設定"}
+        {touchAreas.length > 0 ? t.editor.info.editTouchBtn : t.editor.info.setupTouchBtn}
       </button>
       {hasTouchConfig && (
         <button
@@ -139,13 +141,16 @@ export default function InfoPanel({
           className="kc-add kc-add-alt"
           onClick={() => onMetaChange("touchControls", undefined)}
         >
-          ✕ タッチ操作設定を削除
+          {t.editor.info.removeTouchBtn}
         </button>
       )}
 
       <p className="kc-tip">
-        「書き出し」を押すと、<b>config.json</b>（タイトル・説明・タッチ操作設定）と <b>thumbnail.png</b> が
-        project.mks の最上位に保存されます。先に「▶ 実行」してから設定すると、ゲーム画面を見ながら配置できます。
+        {t.editor.info.tipBefore1}
+        <b>config.json</b>
+        {t.editor.info.tipMiddle1}
+        <b>thumbnail.png</b>
+        {t.editor.info.tipAfter}
       </p>
 
       {touchModalOpen && (
